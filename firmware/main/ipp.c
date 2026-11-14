@@ -88,6 +88,20 @@ static void media_size(buf_t *b, const char *name, int w, int h)
     col_end(b);
 }
 // One media-col value. name="" for additional values of a 1setOf.
+// Standard PWG media-type keywords: iOS shows its own names for these ("Continuous paper - Short Edge", "Plain Paper")
+#define MT_ROLL_KW "stationery"
+#define MT_FANFOLD_KW "continuous-short"   // PWG: sheets joined along the short edge (fanfold)
+#if A80_MEDIA_TYPE_NAMES
+// IPP's media-type is "keyword | name": advertised as free-text names, iOS may show them as written
+#define MT_ROLL A80_PAPER_ROLL_NAME
+#define MT_FANFOLD A80_PAPER_FANFOLD_NAME
+#define MT_TAG T_NAME
+#else
+#define MT_ROLL MT_ROLL_KW
+#define MT_FANFOLD MT_FANFOLD_KW
+#define MT_TAG T_KEYWORD
+#endif
+
 static void media_col(buf_t *b, const char *name, const char *key, int w, int h, int margin, const char *type)
 {
     col_begin(b, name);
@@ -99,7 +113,8 @@ static void media_col(buf_t *b, const char *name, const char *key, int w, int h,
     m_int(b, "media-left-margin", margin);
     m_int(b, "media-right-margin", margin);
     m_kw(b, "media-source", "main");
-    m_kw(b, "media-type", type);
+    member(b, "media-type");
+    a_str(b, MT_TAG, "", type);
     col_end(b);
 }
 
@@ -107,8 +122,6 @@ static void media_col(buf_t *b, const char *name, const char *key, int w, int h,
 #define MARGIN 500   // 5 mm default margins so iOS fits photos; 0-margin variants offered too
 #define LETTER "na_letter_8.5x11in", 21590, 27940
 #define A4 "iso_a4_210x297mm", 21000, 29700
-#define MT_ROLL "stationery"
-#define MT_FANFOLD "continuous-short"   // PWG: sheets joined along the short edge (fanfold)
 #define PRINTER_URI "ipp://" A80_HOSTNAME ".local:8631/ipp/print"
 
 // text/strings catalog (PWG 5100.13 section 9.1): `"attribute.keyword" = "text";` per line
@@ -117,8 +130,8 @@ size_t ipp_strings_en(char *out, size_t cap)
     int n = snprintf(out, cap,
                      "/* Paper types shown on the iPhone */\n"
                      "\"media-type\" = \"Paper Type\";\n"
-                     "\"media-type." MT_FANFOLD "\" = \"" A80_PAPER_FANFOLD_NAME "\";\n"
-                     "\"media-type." MT_ROLL "\" = \"" A80_PAPER_ROLL_NAME "\";\n");
+                     "\"media-type." MT_FANFOLD_KW "\" = \"" A80_PAPER_FANFOLD_NAME "\";\n"
+                     "\"media-type." MT_ROLL_KW "\" = \"" A80_PAPER_ROLL_NAME "\";\n");
     return n < 0 ? 0 : (size_t)n < cap ? (size_t)n : cap - 1;
 }
 
@@ -255,7 +268,7 @@ static void printer_attributes(buf_t *b)
     media_size(b, "", 21000, 29700);
     a_str(b, T_KEYWORD, "media-source-supported", "main");
     a_strs(b, T_KEYWORD, "media-supported", kw_media, 2);
-    a_strs(b, T_KEYWORD, "media-type-supported", kw_types, 2);
+    a_strs(b, MT_TAG, "media-type-supported", kw_types, 2);
     a_str(b, T_KEYWORD, "multiple-document-handling-supported", "separate-documents-uncollated-copies");
     a_bool(b, "multiple-document-jobs-supported", false);
     a_int(b, T_INTEGER, "multiple-operation-time-out", 60);
@@ -392,7 +405,7 @@ static int parse(const uint8_t *d, size_t n, req_t *r)
             want_mt = vl == 10 && !memcmp(v, "media-type", 10);
             continue;
         }
-        if (depth && want_mt && t == T_KEYWORD) {
+        if (depth && want_mt && (t == T_KEYWORD || t == T_NAME || t == T_TEXT)) {
             snprintf(r->media_type, sizeof r->media_type, "%.*s", vl, (const char *)v);
             want_mt = false;
         }
@@ -480,7 +493,8 @@ ipp_txn_t *ipp_begin(const uint8_t *hdr, size_t len)
     case 0x05:   // Create-Job
         t->job = job_new(r->job_name);
         // a job that names a paper type gets it; one that doesn't prints as continuous perforated Letter
-        t->job->fanfold = r->media_type[0] ? !strcmp(r->media_type, MT_FANFOLD) : true;
+        // either spelling counts: the name we advertise, or the standard keyword (an iPhone may remember the old one)
+        t->job->fanfold = r->media_type[0] ? !strcmp(r->media_type, MT_FANFOLD) || !strcmp(r->media_type, MT_FANFOLD_KW) : true;
         t->job->darkness = r->quality == 5 ? 2 : -1;   // Best = darkest; Normal = automatic
         // iOS may show Draft even though only Normal and Best are advertised; Draft prints as Normal (user: too light)
         if (r->quality == 3) weblog("Job %d: Draft isn't offered by this printer; printing as Normal", t->job->id);

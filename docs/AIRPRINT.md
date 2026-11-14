@@ -86,4 +86,7 @@ diagonal dot lines.
 "media-type.stationery" = "Paper Roll";
 ```
 
-Keys are `attribute.keyword`. Whether iOS uses the catalog in the Media & Quality list is verified on a phone.
+Keys are `attribute.keyword`. **Tested on iOS (2026-11-14): the iPhone fetches this file, but ignores it for
+media-type names** in Media & Quality (it kept "Continuous Paper - Short Edge" and "Plain Paper"). The firmware
+therefore advertises the two types as free-text *names* instead (`media-type` is `keyword | name` in IPP); with
+`A80_MEDIA_TYPE_NAMES` set to 0 it goes back to the standard keywords. Jobs naming either spelling are accepted.

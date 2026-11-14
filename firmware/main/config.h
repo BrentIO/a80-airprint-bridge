@@ -42,6 +42,9 @@
 // /strings/en.strings). A job that doesn't name a paper type prints as the continuous perforated Letter.
 #define A80_PAPER_FANFOLD_NAME "Continuous Perforated Letter"
 #define A80_PAPER_ROLL_NAME    "Paper Roll"
+// 1: advertise the two paper types to the iPhone as free-text names (so it may show them as written); 0: use the
+// standard media-type keywords (iOS then shows its own wording and ignores the strings catalog, as tested 2026-11-14)
+#define A80_MEDIA_TYPE_NAMES   1
 // iPhone Quality "Normal" (the default) = automatic darkness: pages darker than this print at printer darkness 01,
 // others at 02. Dense black at 02 makes the printer slow down and stutter, worst with a cold head (2026-11-12).
 #define A80_AUTO_DARK_PCT 50
