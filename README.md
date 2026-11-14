@@ -88,6 +88,10 @@ date, ESP-IDF version, chip, MAC addresses, free internal RAM and PSRAM, flash a
 uptime, Wi-Fi state), directly above the printer's own block. The status page has the same list under "ESP32". It
 includes the MAC addresses, so mask them before pasting a log or page into an issue.
 
+Every log line about a client (connections, requests, IPP operations, jobs) names the client's address, for example
+`Client is checking printer status and settings [IPP Get-Printer-Attributes #3 from 10.1.1.68]`, so you can tell a phone
+from a Mac. The address of a home network is private, but mask it too if you'd rather.
+
 **After updating from an older firmware:** earlier builds printed on port 8631; this one uses port 80. A phone or
 Mac that already knew the printer can keep the old address and fail with "The printer is no longer available" or a
 preview that won't load. Cancel the stuck jobs and **restart the iPhone** (on a Mac, remove the printer and add it

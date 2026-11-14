@@ -8,7 +8,7 @@ typedef struct ipp_txn ipp_txn_t;
 // Length of the IPP header (attributes) in d, 0 if more bytes are needed, -1 if malformed.
 int ipp_header_len(const uint8_t *d, size_t n);
 // Start a request from its header; document bytes (if any) follow via ipp_doc.
-ipp_txn_t *ipp_begin(const uint8_t *hdr, size_t len);
+ipp_txn_t *ipp_begin(const uint8_t *hdr, size_t len, const char *client_ip);
 int ipp_doc(ipp_txn_t *t, const uint8_t *d, size_t n);   // 0 ok, -1 stop reading
 // Finish: build the response (malloc'd, caller frees) and free the transaction.
 size_t ipp_finish(ipp_txn_t *t, uint8_t **resp);

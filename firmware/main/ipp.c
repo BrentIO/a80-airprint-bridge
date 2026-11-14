@@ -478,6 +478,7 @@ int ipp_header_len(const uint8_t *d, size_t n)
 
 // ---------------------------------------------------------------- transactions
 struct ipp_txn {
+    char client[16];   // the client's address, for the log
     req_t r;
     int status;
     job_t *job;
@@ -486,17 +487,25 @@ struct ipp_txn {
     buf_t groups;   // response groups after the operation group
 };
 
-ipp_txn_t *ipp_begin(const uint8_t *hdr, size_t len)
+ipp_txn_t *ipp_begin(const uint8_t *hdr, size_t len, const char *client_ip)
 {
     ipp_txn_t *t = heap_caps_calloc(1, sizeof *t, MALLOC_CAP_SPIRAM);
     req_t *r = &t->r;
+    snprintf(t->client, sizeof t->client, "%s", client_ip);
     parse(hdr, len, r);
     {
         // The iPhone polls printer and job status every 1-3 s: note those once per 30 s with a count, log the rest.
-        static int64_t last_poll[2];
-        static int polls[2];
+        // The count is kept per client, so one busy client doesn't hide another (4 clients tracked; the oldest is replaced).
+        static struct { char ip[16]; int64_t last_poll[2]; int polls[2]; int64_t used; } seen[4];
         int k = r->op == 0x0B ? 0 : r->op == 0x09 ? 1 : -1;
         int64_t now = esp_timer_get_time();
+        int si = 0;
+        for (int q = 0; q < 4; q++) {
+            if (!strcmp(seen[q].ip, client_ip)) { si = q; break; }
+            if (seen[q].used < seen[si].used) si = q;
+        }
+        if (strcmp(seen[si].ip, client_ip)) { memset(&seen[si], 0, sizeof seen[si]); snprintf(seen[si].ip, sizeof seen[si].ip, "%s", client_ip); }
+        seen[si].used = now;
         static const char *const what[] = {
             [0x02] = "Client sent a print job", [0x04] = "Client asked whether a job would be accepted",
             [0x05] = "Client started a print job", [0x06] = "Client is sending the document",
@@ -506,17 +515,17 @@ ipp_txn_t *ipp_begin(const uint8_t *hdr, size_t len)
             [0x3C] = "Client asked the printer to identify itself",
         };
         const char *w = r->op < (int)(sizeof what / sizeof *what) && what[r->op] ? what[r->op] : "Client sent an unknown request";
-        if (k < 0) weblog("%s [IPP %s #%d]", w, opname(r->op), r->req_id);
-        else if (now - last_poll[k] >= 30000000LL) {
-            if (polls[k]) weblog("%s [IPP %s #%d; %d more in the last 30 s not logged]", w, opname(r->op), r->req_id, polls[k]);
-            else weblog("%s [IPP %s #%d]", w, opname(r->op), r->req_id);
-            last_poll[k] = now;
-            polls[k] = 0;
-        } else polls[k]++;
+        if (k < 0) weblog("%s [IPP %s #%d from %s]", w, opname(r->op), r->req_id, client_ip);
+        else if (now - seen[si].last_poll[k] >= 30000000LL) {
+            if (seen[si].polls[k]) weblog("%s [IPP %s #%d from %s; %d more in the last 30 s not logged]", w, opname(r->op), r->req_id, client_ip, seen[si].polls[k]);
+            else weblog("%s [IPP %s #%d from %s]", w, opname(r->op), r->req_id, client_ip);
+            seen[si].last_poll[k] = now;
+            seen[si].polls[k] = 0;
+        } else seen[si].polls[k]++;
     }
     if (r->op == 0x02 || r->op == 0x04 || r->op == 0x05)   // what this client asks for (reference for new kinds of client)
-        weblog("Job request from \"%s\": format %s, paper type '%s', size %s (%dx%d), source %s, top margin %d, color %s, "
-               "sides %s, quality %d, copies %d, orientation %d", r->user, r->format[0] ? r->format : "(none)", r->media_type,
+        weblog("Job request from \"%s\" at %s: format %s, paper type '%s', size %s (%dx%d), source %s, top margin %d, color %s, "
+               "sides %s, quality %d, copies %d, orientation %d", r->user, client_ip, r->format[0] ? r->format : "(none)", r->media_type,
                r->size_name, r->size_x, r->size_y, r->source, r->margin_top, r->color_mode, r->sides, r->quality, r->copies, r->orient);
     if (r->ver_major < 1 || r->ver_major > 2) t->status = 0x0503;
     else if (r->req_id == 0 || !r->first_ok || !r->has_uri) t->status = 0x0400;
@@ -542,7 +551,7 @@ ipp_txn_t *ipp_begin(const uint8_t *hdr, size_t len)
         t->job->darkness = r->quality == 5 ? 2 : -1;   // Best = darkest; Normal = automatic
         // iOS may show Draft even though only Normal and Best are advertised; Draft prints as Normal (user: too light)
         if (r->quality == 3) weblog("Job %d: Draft isn't offered by this printer; printing as Normal", t->job->id);
-        weblog("Job %d \"%s\": %s, quality %s [media-type '%s']", t->job->id, t->job->name,
+        weblog("Job %d \"%s\" from %s: %s, quality %s [media-type '%s']", t->job->id, t->job->name, client_ip,
                t->job->fanfold ? A80_PAPER_FANFOLD_NAME : A80_PAPER_ROLL_NAME,
                t->job->darkness == 0 ? "Draft" : t->job->darkness == 2 ? "Best" : "Normal (automatic darkness)", r->media_type);
         if (r->op == 0x02) t->conv = urfconv_new(A80_HEAD_DOTS);
@@ -639,10 +648,10 @@ size_t ipp_finish(ipp_txn_t *t, uint8_t **resp)
     a_str(&b, T_LANG, "attributes-natural-language", "en");
     if (t->groups.len) put(&b, t->groups.p, t->groups.len);
     u8(&b, G_END);
-    if (t->status) weblog("Request refused: %s [IPP status 0x%04x]",
+    if (t->status) weblog("Request refused: %s [IPP status 0x%04x, from %s]",
                           t->status == 0x0400 ? "malformed request" : t->status == 0x0406 ? "no such job"
                           : t->status == 0x040A ? "document format not supported" : t->status == 0x0501 ? "operation not supported"
-                          : t->status == 0x0503 ? "IPP version not supported" : "error", t->status);
+                          : t->status == 0x0503 ? "IPP version not supported" : "error", t->status, t->client);
     free(t->groups.p);
     free(t);
     *resp = b.p;
