@@ -20,7 +20,8 @@ It's a printer similar to [this one on Amazon](https://a.co/d/09d2KUnP).
   continuous perforated Letter.
 - **Quality:** Normal = automatic darkness (lighter for very dark pages, which print more cleanly), Best = darkest.
 - **Status on the iPhone:** a line under the printer's name ("Ready - battery 80%", "Off - press power button",
-  "Out of paper"), the battery under Printer Info → Supply Levels, and a status page under "Show Printer Web Page".
+  "Out of paper"; with the printer off it adds how long ago it was last connected, e.g. "Off - press power button
+  (last connected about 1h 25m ago)"), the battery under Printer Info → Supply Levels, and a status page under "Show Printer Web Page".
 - **Printer off:** a job waits on the ESP32 and prints as soon as the printer is switched on (up to 30 min).
 - **Errors:** if the cover is open or the paper is out when a page is due, the job waits and resumes once it's
   fixed; a fanfold stack running out on the last sheet counts as printed. (Errors in the middle of a page are not
