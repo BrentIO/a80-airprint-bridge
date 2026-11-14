@@ -22,6 +22,7 @@ bool ipp_fanfold_default(void);
 void ipp_set_fanfold_default(bool fanfold);
 void ipp_fanfold_load(void);   // main task only (reads NVS)
 void ipp_fanfold_save(void);   // internal-stack task only (writes NVS if changed)
+void ipp_settings_start(void); // starts the task that saves the paper default (call once, from the main task)
 
 // Called by the print task.
 void ipp_job_update(int id, int state, const char *reasons, int pages_done);   // pages_done < 0: unchanged

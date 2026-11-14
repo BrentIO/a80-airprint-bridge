@@ -9,6 +9,8 @@
 #include <string.h>
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "nvs.h"
 #include "config.h"
 #include "weblog.h"
@@ -142,7 +144,7 @@ void ipp_set_printer_state(int state, const char *reason, const char *message)
 }
 
 // NVS (flash) may only be touched from tasks with internal-RAM stacks (the HTTP workers use PSRAM stacks),
-// so loading happens in printer_start (main task) and saving in the button task.
+// so loading happens in printer_start (main task) and saving in settings_task below.
 static volatile bool fanfold_dflt, fanfold_dirty;
 
 void ipp_fanfold_load(void)
@@ -161,6 +163,19 @@ void ipp_fanfold_save(void)
     if (nvs_open("a80", NVS_READWRITE, &h) == ESP_OK) { nvs_set_u8(h, "fanfold", fanfold_dflt); nvs_commit(h); nvs_close(h); }
 }
 
+static void settings_task(void *arg)   // internal stack: the only place the paper default is written to flash
+{
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        ipp_fanfold_save();
+    }
+}
+
+void ipp_settings_start(void)
+{
+    xTaskCreate(settings_task, "settings", 3072, NULL, 3, NULL);
+}
+
 bool ipp_fanfold_default(void) { return fanfold_dflt; }
 
 void ipp_set_fanfold_default(bool fanfold)
@@ -168,7 +183,7 @@ void ipp_set_fanfold_default(bool fanfold)
     if (fanfold_dflt == fanfold) return;
     fanfold_dflt = fanfold;
     fanfold_dirty = true;
-    weblog("Paper type is now %s (used when the iPhone doesn't say)", fanfold ? "fanfold (continuous Letter)" : "roll");
+    weblog("Paper type is now %s (the iPhone's choice, kept for jobs that don't say)", fanfold ? "fanfold (continuous Letter)" : "roll");
 }
 
 typedef struct {

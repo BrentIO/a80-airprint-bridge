@@ -38,9 +38,6 @@
 #define A80_TEAR_DOTS     120                  // feed after the last row: head -> tear bar
 #define A80_FANFOLD_FIX   27
 #define A80_FANFOLD_ROWS  (A80_FANFOLD_PITCH - A80_TEAR_DOTS + A80_FANFOLD_FIX)   // 2142
-// The BOOT button is GPIO0 (ESP32-S3 dev boards). A press toggles the default roll <-> fanfold paper (used when the
-// iPhone doesn't send a media-type). GPIO0 held at reset = flashing mode. Wi-Fi setup does not use any button.
-#define A80_MODE_BUTTON   0
 // iPhone Quality "Normal" (the default) = automatic darkness: pages darker than this print at printer darkness 01,
 // others at 02. Dense black at 02 makes the printer slow down and stutter, worst with a cold head (2026-11-12).
 #define A80_AUTO_DARK_PCT 50

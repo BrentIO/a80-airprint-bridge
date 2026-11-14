@@ -6,7 +6,7 @@
 // - keep-alive: status query every 60 s while idle
 // - fanfold mode: pad the page to A80_FANFOLD_ROWS and feed A80_TEAR_DOTS, so each page advances exactly one
 //   sheet; running out of paper at the end of a fanfold page is the stack ending, not a failed page
-// - BOOT button toggles the default paper mode (used when the iPhone doesn't send a media-type)
+// - the paper mode (roll / fanfold) follows the iPhone's Media & Quality choice and is remembered (NVS)
 #include "printer.h"
 #include "wifi.h"
 
@@ -15,7 +15,6 @@
 #include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "esp_timer.h"
-#include "driver/gpio.h"
 #include "freertos/idf_additions.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
@@ -896,29 +895,12 @@ static void print_task(void *arg)
     }
 }
 
-static void button_task(void *arg)   // BOOT button (GPIO0): toggle the default paper mode
-{
-    gpio_config_t io = {.pin_bit_mask = 1ULL << A80_MODE_BUTTON, .mode = GPIO_MODE_INPUT,
-                        .pull_up_en = GPIO_PULLUP_ENABLE};
-    gpio_config(&io);
-    weblog("Paper type: %s (press the ESP32's BOOT button, GPIO%d, to switch)",
-           ipp_fanfold_default() ? "fanfold (continuous Letter)" : "roll", A80_MODE_BUTTON);
-    int held = 0;
-    for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(50));
-        ipp_fanfold_save();
-        if (gpio_get_level(A80_MODE_BUTTON) == 0) {
-            if (++held == 2) ipp_set_fanfold_default(!ipp_fanfold_default());   // 100 ms debounce, once per press
-        } else {
-            held = 0;
-        }
-    }
-}
-
 void printer_start(void)
 {
     ipp_fanfold_load();
-    xTaskCreate(button_task, "button", 3072, NULL, 3, NULL);   // internal stack: it writes NVS
+    ipp_settings_start();
+    weblog("Paper type: %s (follows the iPhone's choice under Media & Quality)",
+           ipp_fanfold_default() ? "fanfold (continuous Letter)" : "roll");
     ev = xEventGroupCreate();
     replies = xQueueCreate(16, sizeof(reply_t));
     jobs_q = xQueueCreate(4, sizeof(pjob_t));

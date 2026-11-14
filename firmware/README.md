@@ -23,7 +23,7 @@ Step history (each image = previous + the change):
 
 | Step | Change |
 |---|---|
-| 3–7 | BLE printing; fanfold mode (BOOT button / `continuous-short`), page-step calibration; DHCP without router/DNS; diagnostics |
+| 3–7 | BLE printing; fanfold mode (`continuous-short`), page-step calibration; DHCP without router/DNS; diagnostics |
 | 8–11 | Idle monitor, printer info, charging guess, English notifications, asleep detection, auto-off 60 |
 | 12–16 | Per-strip timing; stack-end fix; quality → darkness; Normal = automatic |
 | 17–21 | Draft removed, fanfold step −5 dots; plain-English hex-first log with `<`/`>` lines; Draft prints as Normal |
