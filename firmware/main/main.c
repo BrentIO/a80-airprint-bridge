@@ -88,7 +88,7 @@ void app_main(void)
     esp_log_level_set("pp", ESP_LOG_WARN);
     esp_log_level_set("mdns_mem", ESP_LOG_WARN);
     esp_log_level_set("BLE_INIT", ESP_LOG_WARN);
-    weblog("A80 AirPrint bridge starting [%u KB PSRAM free]",
+    weblog("A80 AirPrint bridge starting [firmware version %s, commit %s, %u KB PSRAM free]", A80_VERSION, A80_COMMIT,
            (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
     start_ap();
     start_mdns();

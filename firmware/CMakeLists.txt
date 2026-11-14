@@ -1,3 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/version.cmake)
+set(PROJECT_VER "${A80_VERSION}+${A80_COMMIT}")   # shown in the ESP-IDF boot log ("App version")
 project(a80airprint)

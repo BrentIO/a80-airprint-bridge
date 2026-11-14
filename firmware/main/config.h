@@ -8,7 +8,14 @@
 // Printer to connect to: its exact BLE name (e.g. "A80_1A2B_LE"), or "" for the first A80 found.
 #define A80_BLE_NAME     ""
 #define A80_PRINTER_NAME "A80 Thermal"
-#define A80_BRIDGE_VERSION "step29"
+// A80_VERSION and A80_COMMIT come from the build (version.cmake)
+#ifndef A80_VERSION
+#define A80_VERSION "9999.99.99"
+#endif
+#ifndef A80_COMMIT
+#define A80_COMMIT "unknown"
+#endif
+#define A80_BRIDGE_VERSION A80_VERSION " (" A80_COMMIT ")"
 #define A80_HOSTNAME     "a80printer"          // a80printer.local
 #define A80_IPP_PORT     8631
 #define A80_AP_IP        "192.168.4.1"

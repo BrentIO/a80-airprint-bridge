@@ -47,6 +47,9 @@ docker run --rm -v "$PWD":/project -w /project espressif/idf:v5.5 idf.py merge-b
 Flash `firmware/build/merged.bin` at address **0x0**, for example with the web flasher
 (https://espressif.github.io/esptool-js/, Chrome) or `esptool.py write_flash 0x0 merged.bin`.
 
+Every pull request is also built in GitHub Actions: download the merged image from the run's **Artifacts**
+and flash it at **0x0**, no local build needed.
+
 Settings are in [`firmware/main/config.h`](firmware/main/config.h): hotspot name, printer name, the printer's BLE
 name (`A80_BLE_NAME`; empty = the first A80 found), auto power-off, fanfold page calibration.
 
@@ -57,6 +60,9 @@ name (`A80_BLE_NAME`; empty = the first A80 found), auto power-off, fanfold page
 3. Share → Print → **A80 Thermal**.
 
 The serial console (115200) logs every step in plain English, with the printer traffic in hex.
+The first line says which firmware is running, for example `firmware version 9999.99.99, commit 8c711ad`
+(development builds use the placeholder version `9999.99.99`; releases carry their `YYYY.MM.NN` version). The
+same appears on the status page under "Show Printer Web Page".
 
 ## Repository
 
