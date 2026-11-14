@@ -122,6 +122,7 @@ static void handle_conn(conn_t *c)
         }
         if (!strcmp(method, "GET") && !strncmp(path, "/strings/", 9)) {   // names of the paper types for the iPhone
             char cat[320];
+            weblog("iPhone fetched the paper-name catalog [%s, connection %d]", path, c->fd);
             respond(c->fd, "text/strings; charset=utf-8", cat, ipp_strings_en(cat, sizeof cat));
             if (close_after) break;
             continue;
