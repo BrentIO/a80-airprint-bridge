@@ -38,6 +38,10 @@
 #define A80_TEAR_DOTS     120                  // feed after the last row: head -> tear bar
 #define A80_FANFOLD_FIX   27
 #define A80_FANFOLD_ROWS  (A80_FANFOLD_PITCH - A80_TEAR_DOTS + A80_FANFOLD_FIX)   // 2142
+// Paper types, as people see them (logs, status page, and on the iPhone through the strings file served at
+// /strings/en.strings). A job that doesn't name a paper type prints as the continuous perforated Letter.
+#define A80_PAPER_FANFOLD_NAME "Continuous Perforated Letter"
+#define A80_PAPER_ROLL_NAME    "Paper Roll"
 // iPhone Quality "Normal" (the default) = automatic darkness: pages darker than this print at printer darkness 01,
 // others at 02. Dense black at 02 makes the printer slow down and stutter, worst with a cold head (2026-11-12).
 #define A80_AUTO_DARK_PCT 50

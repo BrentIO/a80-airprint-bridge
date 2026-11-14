@@ -75,3 +75,15 @@ diagonal dot lines.
   Small devices must **stream-convert** the document rather than buffer it (see firmware/main/urfconv.c).
 - iOS polls Get-Printer-Attributes and Get-Job-Attributes every ~1–3 s on separate keep-alive connections while uploading
   on another. The server must serve them concurrently.
+
+## Naming the paper types (`printer-strings-uri`)
+
+`printer-strings-uri` (with `printer-strings-languages-supported` = `en`) points to a `text/strings` message catalog
+(PWG 5100.13 section 9.1) served by the printer at `http://<host>:8631/strings/en.strings`. It names the two media types:
+
+```
+"media-type.continuous-short" = "Continuous Perforated Letter";
+"media-type.stationery" = "Paper Roll";
+```
+
+Keys are `attribute.keyword`. Whether iOS uses the catalog in the Media & Quality list is verified on a phone.
