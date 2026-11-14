@@ -11,6 +11,7 @@
 #include "weblog.h"
 
 void httpd_start(void);
+#include "espinfo.h"
 #include "printer.h"
 #include "wifi.h"
 
@@ -55,6 +56,7 @@ void app_main(void)
     weblog("A80 AirPrint bridge starting [firmware version %s, commit %s, %u KB PSRAM free]", A80_VERSION, A80_COMMIT,
            (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
     wifi_start();
+    espinfo_log();   // once at boot too, so it shows even when the printer is off
     start_mdns();
     httpd_start();
     printer_start();

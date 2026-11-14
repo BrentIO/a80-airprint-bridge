@@ -7,6 +7,7 @@
 // - fanfold mode: pad the page to A80_FANFOLD_ROWS and feed A80_TEAR_DOTS, so each page advances exactly one
 //   sheet; running out of paper at the end of a fanfold page is the stack ending, not a failed page
 // - paper: a job's media-type picks continuous perforated Letter (fanfold) or the roll; with none, fanfold
+#include "espinfo.h"
 #include "printer.h"
 #include "wifi.h"
 
@@ -551,6 +552,7 @@ static void log_printer_info(void)   // once per connection: identity, density, 
         {{0x10, 0xFF, 0x30, 0x10}, "Bluetooth module version"},
     };
     quiet_replies = true;   // English only in this block
+    espinfo_log();   // the ESP32 block, directly above the printer block
     weblog("---- Printer information ----");
     for (int i = 0; i < (int)(sizeof ident / sizeof *ident); i++) {
         if (query_raw(ident[i].q, 4, &r) && r.len) {
@@ -930,16 +932,10 @@ size_t printer_status_html(char *o, size_t cap)
           on ? "" : " (last reading)");
     for (int i = 0; i < npinfo; i++) P("<tr><td>%s</td><td>%s</td></tr>", pinfo[i][0], pinfo[i][1]);
     if (!npinfo) P("<tr><td colspan=2>Details appear once the printer has been switched on.</td></tr>");
-    P("</table><h2>Bridge</h2><table>");
-    {
-        char w[160];
-        wifi_describe_html(w, sizeof w);
-        P("<tr><td>Wi-Fi</td><td>%s<br><a href=/wifi>Change Wi-Fi</a></td></tr>", w);
-    }
+    P("</table><h2>ESP32</h2><table>");
     P("<tr><td>Default paper</td><td>%s</td></tr>", A80_PAPER_FANFOLD_NAME);
-    int64_t up = esp_timer_get_time() / 1000000;
-    P("<tr><td>Up for</td><td>%dh %02dm</td></tr>", (int)(up / 3600), (int)(up / 60 % 60));
-    P("<tr><td>Firmware</td><td>%s</td></tr></table>", A80_BRIDGE_VERSION);
+    if (n < cap) n += espinfo_html_rows(o + n, cap - n);
+    P("</table>");
     P("<p style='color:#888;font-size:13px'>Refreshes every 15 s.</p></body></html>");
 #undef P
     return n < cap ? n : cap - 1;

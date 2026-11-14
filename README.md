@@ -66,6 +66,11 @@ The first line says which firmware is running, for example `firmware version 999
 (development builds use the placeholder version `9999.99.99`; releases carry their `YYYY.MM.NN` version). The
 same appears on the status page under "Show Printer Web Page".
 
+At boot, and again each time the printer connects, the console prints an **ESP32 information** block (firmware, build
+date, ESP-IDF version, chip, MAC addresses, free internal RAM and PSRAM, flash and firmware space, why it last restarted,
+uptime, Wi-Fi state), directly above the printer's own block. The status page has the same list under "ESP32". It
+includes the MAC addresses, so mask them before pasting a log or page into an issue.
+
 ## Home Wi-Fi (optional)
 
 At home the printer can join your own Wi-Fi, so the iPhone prints without switching networks. Away from home (in the
