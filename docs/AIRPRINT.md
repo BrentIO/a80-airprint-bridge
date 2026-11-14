@@ -5,7 +5,7 @@ The ESP32-S3 firmware should reproduce this conversation exactly.
 
 ## Bonjour / mDNS advertisement
 
-Service `_ipp._tcp`, subtypes `_universal` (this marks it as AirPrint) and `_print`, port 8631. TXT record:
+Service `_ipp._tcp`, subtypes `_universal` (this marks it as AirPrint) and `_print`, port 80. TXT record:
 
 ```
 txtvers=1 qtotal=1 rp=ipp/print ty=aixiqee A80 product=(A80) note=Desk
@@ -79,7 +79,7 @@ diagonal dot lines.
 ## Naming the paper types (`printer-strings-uri`)
 
 `printer-strings-uri` (with `printer-strings-languages-supported` = `en`, `en-us`) points to a `text/strings` message
-catalog (PWG 5100.13 section 9.1) served by the printer at `http://<host>:8631/strings/en.strings`. Keys are
+catalog (PWG 5100.13 section 9.1) served by the printer at `http://<host>/strings/en.strings`. Keys are
 `attribute.keyword`. The firmware advertises the two paper types with **its own keywords** and names them there:
 
 ```
@@ -100,9 +100,9 @@ Findings that led here:
 `A80_MEDIA_TYPE_NAMES` in `config.h`: 0 = standard keywords, 1 = free-text names, 2 = our keywords + catalog.
 Jobs naming any of these spellings are accepted.
 
-## Web pages on port 80
+## One port: 80
 
-Printing (IPP) stays on port 8631, the port Bonjour advertises. The status page, `/wifi` and the paper-name catalog are
-also served on port 80, so `http://192.168.4.1/` and `http://a80printer.local/` work in a browser. Both ports share one
-pool of connection handlers; port 80 refuses everything except `GET` and the `/wifi` form (anything else gets 404).
-`printer-more-info` ("Show Printer Web Page") and the Bonjour `adminurl` use the port-less address.
+Printing (IPP) and the web pages (status page, `/wifi`, the paper-name catalog) share **port 80**, so
+`http://192.168.4.1/` and `http://a80printer.local/` work in a browser. Bonjour advertises port 80 in the service
+record, and `printer-uri-supported` is `ipp://a80printer.local:80/ipp/print`. Earlier firmware used 8631 for both;
+nothing in the AirPrint conversation requires a particular port, because Bonjour carries it.

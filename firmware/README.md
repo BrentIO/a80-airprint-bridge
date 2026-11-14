@@ -148,7 +148,7 @@ If Connect fails: hold BOOT, tap RESET, release BOOT.
 
 | File | Role |
 |---|---|
-| `config.h` | SSID (`A80-Print`, open), channel 6, printer name, hostname `a80printer`, printing port 8631, web port 80, UUID, head width 1664 |
+| `config.h` | SSID (`A80-Print`, open), channel 6, printer name, hostname `a80printer`, port 80 (printing and web pages), UUID, head width 1664 |
 | `main.c` | NVS, netif, SoftAP (WIFI_AUTH_OPEN), mDNS + TXT record, starts httpd and printer |
 | `httpd.c` | Minimal HTTP/1.1 on lwIP sockets. 8 worker tasks with **PSRAM stacks** take connections from a queue. Idle keep-alive timeout is 10 s; 120 s while a request body is arriving. Handles `Expect: 100-continue` and **chunked** bodies. Reads only the IPP header into memory, then **streams** the document to `ipp_doc()`. |
 | `ipp.c` | IPP encode/parse, printer attributes , job table (8). API: `ipp_header_len` / `ipp_begin` / `ipp_doc` / `ipp_finish`, plus `ipp_job_update` / `ipp_job_canceled` for the print task |
