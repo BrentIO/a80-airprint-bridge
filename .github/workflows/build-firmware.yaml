@@ -15,6 +15,12 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Compiler cache: a warm cache cuts the build from ~45 s to ~17 s
+  IDF_CCACHE_ENABLE: "1"
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 100M
+  # Stamped into the firmware (printed on the serial console at boot); the PR head, not the merge commit
+  A80_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
   build:
@@ -36,6 +42,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - name: Restore compiler cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: .ccache
+          key: ccache-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
       - name: Trust the checked-out workspace
         working-directory: ${{ github.workspace }}
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -44,6 +58,9 @@ jobs:
         run: |
           . "$IDF_PATH/export.sh" >/dev/null
           idf.py build
+
+      - name: Compiler cache statistics
+        run: ccache -s | grep -E 'Hits|Misses|Cache size'
 
       - name: Firmware size
         run: |

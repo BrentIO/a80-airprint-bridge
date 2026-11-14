@@ -16,5 +16,8 @@ firmware/sdkconfig.old
 *.pkg
 *.run
 
+# Compiler cache (CI)
+.ccache/
+
 # macOS
 .DS_Store
