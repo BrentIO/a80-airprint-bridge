@@ -12,6 +12,7 @@
 
 void httpd_start(void);
 #include "espinfo.h"
+#include "ota.h"
 #include "printer.h"
 #include "wifi.h"
 
@@ -59,6 +60,7 @@ void app_main(void)
     espinfo_init();
     espinfo_log();   // once at boot too, so it shows even when the printer is off
     start_mdns();
+    ota_init();
     httpd_start();
     printer_start();
 }

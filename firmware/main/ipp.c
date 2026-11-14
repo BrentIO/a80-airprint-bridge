@@ -196,6 +196,13 @@ typedef struct {
 static job_t jobs[MAX_JOBS];
 static int next_id = 1;
 
+bool ipp_busy(void)
+{
+    for (int i = 0; i < MAX_JOBS; i++)
+        if (jobs[i].id && jobs[i].state < 7) return true;
+    return false;
+}
+
 static job_t *job_find(int id)
 {
     for (int i = 0; i < MAX_JOBS; i++)

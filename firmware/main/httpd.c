@@ -16,6 +16,7 @@
 #include "ipp.h"
 #include "printer.h"
 #include "wifi.h"
+#include "ota.h"
 #include "weblog.h"
 
 
@@ -143,11 +144,12 @@ static void handle_conn(conn_t *c)
         if (!strcmp(method, "GET")) {
             // /wifi: the home Wi-Fi setup page; anything else: the status page (iOS "Printer Website")
             bool setup = !strncmp(path, "/wifi", 5);
+            bool upd = !strncmp(path, "/update", 7);
             size_t cap = setup ? 16384 : 12288;
             char *page = heap_caps_malloc(cap, MALLOC_CAP_SPIRAM);
             if (page) {
                 respond(c->fd, "text/html; charset=utf-8", page,
-                        setup ? wifi_setup_html(page, cap) : printer_status_html(page, cap));
+                        setup ? wifi_setup_html(page, cap) : upd ? ota_page_html(page, cap) : printer_status_html(page, cap));
                 free(page);
             }
             if (close_after) break;
@@ -160,6 +162,38 @@ static void handle_conn(conn_t *c)
         setsockopt(c->fd, SOL_SOCKET, SO_RCVTIMEO, &tv_body, sizeof tv_body);
         if (expect) send_all(c->fd, "HTTP/1.1 100 Continue\r\n\r\n", 25);
 
+        if (!strncmp(path, "/update", 7)) {   // firmware update: the body is the "-app" image
+            const char *err = NULL;
+            const char *msg = NULL;
+            int code = 200;
+            body_t ub = {.chunked = chunked, .left = clen > 0 ? clen : 0};
+            if (chunked || clen <= 0) { code = 411; msg = "The browser must send the file with its length."; }
+            else if (ota_begin((size_t)clen, &err) != 0) { code = 409; msg = err; }
+            else {
+                weblog("Firmware update started by client %s [%ld KB]", c->ip, clen / 1024);
+                uint8_t *chunk = heap_caps_malloc(4096, MALLOC_CAP_SPIRAM);
+                bool good = chunk != NULL;
+                for (int k; good && (k = body_read(c, &ub, chunk, 4096)) != 0;) {
+                    if (k < 0) { err = "The upload was cut off."; good = false; break; }
+                    if (ota_write(chunk, k, &err) != 0) good = false;
+                }
+                free(chunk);
+                if (good && ota_end(&err) == 0) msg = "Update installed.";
+                else {
+                    if (good) {} else ota_abort();
+                    code = 422;
+                    msg = err ? err : "The update failed.";
+                    weblog("Firmware update refused or failed: %s", msg);
+                }
+            }
+            char hdr[160];
+            int h = snprintf(hdr, sizeof hdr, "HTTP/1.1 %d %s\r\nContent-Type: text/plain\r\nContent-Length: %u\r\nConnection: close\r\n\r\n",
+                             code, code == 200 ? "OK" : "Error", (unsigned)strlen(msg));
+            send_all(c->fd, hdr, h);
+            send_all(c->fd, msg, strlen(msg));
+            if (code == 200) ota_reboot_soon();
+            break;
+        }
         if (!strncmp(path, "/wifi", 5)) {   // the setup form (a few hundred bytes)
             char form[600];
             size_t n = 0;
