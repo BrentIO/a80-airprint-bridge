@@ -41,13 +41,12 @@ Step history (each image = previous + the change):
 
 `main/wifi.c` owns Wi-Fi. Modes: `M_HOME` (station only), `M_LOST` (home dropped, reconnecting for 20 s) and
 `M_HOTSPOT` (hotspot up, home retried every 45 s while no phone is on it). The settings are in `config.h`
-(`A80_HOME_*`, `A80_SETUP_CONFIRM_S`). The saved network lives in NVS namespace `wifi` (keys `ssid`, `pass`), read
-in the main task and written by the Wi-Fi task (internal stack; PSRAM-stack tasks must not touch NVS). A new network
-is saved only after a successful join. The setup page is `GET/POST /wifi` (served by `httpd.c`); the form is parsed
-by `formparse.h`, which has a host test (`test/form_host_test.c`, run by CI). The BOOT button is GPIO0
-(`A80_MODE_BUTTON`): a short press confirms a staged network or toggles the paper mode; holding 5 s forgets the
-network. Not yet verified on hardware: joining a real network, hotspot fallback timing, Bonjour on the home network,
-and printing over it.
+(`A80_HOME_*`). The saved network lives in NVS namespace `wifi` (keys `ssid`, `pass`), read in the main task and
+written by the Wi-Fi task (internal stack; PSRAM-stack tasks must not touch NVS). A new network is saved only after a
+successful join. The setup page is `GET/POST /wifi` (served by `httpd.c`): the POST stages the choice (or `forget=1`)
+and the Wi-Fi task acts on it within a second. The form is parsed by `formparse.h`, which has a host test
+(`test/form_host_test.c`, run by CI). No button is involved. Not yet verified on hardware: joining a real network,
+hotspot fallback timing, Bonjour on the home network, and printing over it.
 
 ## Roadmap
 

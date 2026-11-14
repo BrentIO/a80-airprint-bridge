@@ -1,5 +1,5 @@
 // Wi-Fi: joins the owner's home network when one is saved, otherwise (or when it can't) runs the open "A80-Print"
-// hotspot. A setup page lists the networks in range and saves a new home network after the BOOT button confirms it.
+// hotspot. A setup page lists the networks in range and saves a new home network once the bridge has really joined it.
 //
 // Modes:
 //   M_HOME     station only, on the home network (hotspot off)
@@ -36,11 +36,11 @@ static esp_netif_t *sta_if, *ap_if;
 static EventGroupHandle_t wev;
 static SemaphoreHandle_t lock;   // guards home_* and pend_* (the HTTP workers and the Wi-Fi task both touch them)
 static volatile wmode_t mode = M_HOTSPOT;
-static volatile bool sta_ip, joining, ap_on, have_home, forget_req, pend_confirmed;
+static volatile bool sta_ip, joining, ap_on, have_home, forget_req, pend_ready;
 static volatile int last_reason;   // reason code of the last station disconnect
 static char home_ssid[33], home_pass[65];
 static char pend_ssid[33], pend_pass[65];
-static int64_t pend_until_us, lost_us, last_try_us, drop_ap_us;
+static int64_t lost_us, last_try_us, drop_ap_us;
 
 // ---------------------------------------------------------------- saved network (flash)
 static void nvs_load(void)
@@ -177,16 +177,15 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 }
 
 // ---------------------------------------------------------------- background task
-static void apply_confirmed_change(void)
+static void apply_requested_change(void)
 {
     char ssid[33], pass[65];
     xSemaphoreTake(lock, portMAX_DELAY);
     strlcpy(ssid, pend_ssid, sizeof ssid);
     strlcpy(pass, pend_pass, sizeof pass);
     pend_ssid[0] = pend_pass[0] = 0;
-    pend_until_us = 0;
     xSemaphoreGive(lock);
-    pend_confirmed = false;
+    pend_ready = false;
     if (!ssid[0]) return;
 
     weblog("Wi-Fi: trying to join \"%s\" (up to %d s)", ssid, A80_HOME_JOIN_S);
@@ -244,7 +243,7 @@ static void wifi_task(void *arg)
             drop_ap_us = 0;
             weblog("Wi-Fi: forgot the home network, hotspot only");
         }
-        if (pend_confirmed) apply_confirmed_change();
+        if (pend_ready) apply_requested_change();
 
         if (sta_ip && mode == M_LOST) {
             mode = M_HOME;
@@ -313,26 +312,6 @@ void wifi_start(void)
         ESP_ERROR_CHECK(esp_wifi_start());
     }
     xTaskCreate(wifi_task, "wifi", 4096, NULL, 3, NULL);   // internal stack: it writes NVS
-}
-
-// ---------------------------------------------------------------- BOOT button
-bool wifi_confirm_pressed(void)
-{
-    bool ok = false;
-    if (!lock) return false;
-    xSemaphoreTake(lock, portMAX_DELAY);
-    if (pend_ssid[0] && esp_timer_get_time() < pend_until_us) {
-        pend_confirmed = true;
-        ok = true;
-    }
-    xSemaphoreGive(lock);
-    if (ok) weblog("Wi-Fi: BOOT pressed, applying the new network");
-    return ok;
-}
-
-void wifi_forget(void)
-{
-    forget_req = true;
 }
 
 // ---------------------------------------------------------------- web pages
@@ -471,14 +450,29 @@ size_t wifi_setup_html(char *out, size_t cap)
     hp(&b, "<p>Or type a name (hidden network):<input type=text name=other autocapitalize=none autocorrect=off></p>"
            "<p>Password (leave empty for an open network):<input type=password name=pass></p>"
            "<button type=submit>Save</button></form>"
-           "<p class=m>You will then press the BOOT button on the ESP32 to confirm. <a href=/wifi>Scan again</a> "
-           "&middot; <a href=/>Back</a></p></body></html>");
+           "<p class=m><a href=/wifi>Scan again</a> &middot; <a href=/>Back</a></p>");
+    if (have_home)
+        hp(&b, "<form method=post action=/wifi onsubmit=\"return confirm('Forget the saved home network?')\">"
+               "<input type=hidden name=forget value=1><button type=submit>Forget the saved network</button></form>");
+    hp(&b, "</body></html>");
     xSemaphoreGive(scan_lock);
     return b.n;
 }
 
 size_t wifi_save_request_html(const char *body, char *out, size_t cap)
 {
+    hb_t b = {out, cap, 0};
+    if (cap) out[0] = 0;
+    char flag[4];
+    if (form_get(body, "forget", flag, sizeof flag) >= 0) {
+        forget_req = true;   // done by the Wi-Fi task within a second
+        weblog("Wi-Fi: forgetting the home network was requested from the setup page");
+        page_head(&b, "Home Wi-Fi");
+        hp(&b, "<p>The saved home network is forgotten. The printer goes back to its own hotspot "
+               "\u201c%s\u201d.</p></body></html>", A80_AP_SSID);
+        return b.n;
+    }
+
     char pick[40], other[40], pass[72];
     int lp = form_get(body, "pick", pick, sizeof pick);
     int lo = form_get(body, "other", other, sizeof other);
@@ -490,24 +484,21 @@ size_t wifi_save_request_html(const char *body, char *out, size_t cap)
     else if (ls > 32) err = "A Wi-Fi name can be at most 32 characters.";
     else if (lw > 63 || (lw > 0 && lw < 8)) err = "A Wi-Fi password is 8 to 63 characters.";
 
-    hb_t b = {out, cap, 0};
-    if (cap) out[0] = 0;
-    page_head(&b, err ? "Home Wi-Fi" : "Almost done");
+    page_head(&b, err ? "Home Wi-Fi" : "Joining the network");
     if (err) {
         hp(&b, "<p>%s</p><p><a href=/wifi>Back</a></p></body></html>", err);
     } else {
         xSemaphoreTake(lock, portMAX_DELAY);
         strlcpy(pend_ssid, ssid, sizeof pend_ssid);
         strlcpy(pend_pass, lw > 0 ? pass : "", sizeof pend_pass);
-        pend_until_us = esp_timer_get_time() + A80_SETUP_CONFIRM_S * 1000000LL;
+        pend_ready = true;   // the Wi-Fi task picks it up within a second
         xSemaphoreGive(lock);
-        weblog("Wi-Fi: change to \"%s\" requested, waiting for the BOOT button (%d s)", ssid, A80_SETUP_CONFIRM_S);
-        hp(&b, "<p><b>Press the BOOT button on the ESP32 within %d seconds</b> to switch to “", A80_SETUP_CONFIRM_S);
+        weblog("Wi-Fi: change to \"%s\" requested from the setup page", ssid);
+        hp(&b, "<p>The printer is now trying to join \u201c");
         hesc(&b, ssid);
-        hp(&b, "”.</p><p>The printer then tries to join it. If that works, the hotspot turns off and the printer "
-               "appears on that network. If it can't join (wrong password or out of range), nothing changes: the "
-               "old setting is kept and the hotspot stays.</p>"
-               "<p class=m>To forget the saved network, hold BOOT for 5 seconds.</p></body></html>");
+        hp(&b, "\u201d.</p><p>If that works, the hotspot turns off (this page will lose its connection) and the "
+               "printer appears on that network. If it can't join (wrong password or out of range), nothing changes: "
+               "the old setting is kept and the hotspot stays.</p></body></html>");
     }
     memset(pass, 0, sizeof pass);
     return b.n;

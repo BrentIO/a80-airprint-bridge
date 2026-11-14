@@ -896,28 +896,21 @@ static void print_task(void *arg)
     }
 }
 
-static void button_task(void *arg)   // BOOT button (GPIO0): short press / 5 s hold, see config.h
+static void button_task(void *arg)   // BOOT button (GPIO0): toggle the default paper mode
 {
     gpio_config_t io = {.pin_bit_mask = 1ULL << A80_MODE_BUTTON, .mode = GPIO_MODE_INPUT,
                         .pull_up_en = GPIO_PULLUP_ENABLE};
     gpio_config(&io);
     weblog("Paper type: %s (press the ESP32's BOOT button, GPIO%d, to switch)",
            ipp_fanfold_default() ? "fanfold (continuous Letter)" : "roll", A80_MODE_BUTTON);
-    int held = 0;       // 50 ms ticks the button has been down
-    bool used = false;  // the hold already did its job (forgot the network): ignore the release
+    int held = 0;
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(50));
         ipp_fanfold_save();
         if (gpio_get_level(A80_MODE_BUTTON) == 0) {
-            if (++held == 100 && !used) {   // 5 s
-                wifi_forget();
-                used = true;
-            }
+            if (++held == 2) ipp_set_fanfold_default(!ipp_fanfold_default());   // 100 ms debounce, once per press
         } else {
-            // acts on release, so a long hold isn't also a short press
-            if (held >= 2 && held < 30 && !used && !wifi_confirm_pressed()) ipp_set_fanfold_default(!ipp_fanfold_default());
             held = 0;
-            used = false;
         }
     }
 }

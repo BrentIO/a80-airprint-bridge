@@ -8,7 +8,6 @@
 #define A80_HOME_JOIN_S        12   // at boot, and when trying a new network: wait this long for an address
 #define A80_HOME_LOST_GRACE_S  20   // home network dropped: reconnect this long, then start the hotspot
 #define A80_HOME_RETRY_S       45   // hotspot running: look for the home network this often (only if no phone is on it)
-#define A80_SETUP_CONFIRM_S    60   // after saving on the setup page, the BOOT button confirms for this long
 
 // AirPrint identity
 // Printer to connect to: its exact BLE name (e.g. "A80_1A2B_LE"), or "" for the first A80 found.
@@ -39,8 +38,8 @@
 #define A80_TEAR_DOTS     120                  // feed after the last row: head -> tear bar
 #define A80_FANFOLD_FIX   27
 #define A80_FANFOLD_ROWS  (A80_FANFOLD_PITCH - A80_TEAR_DOTS + A80_FANFOLD_FIX)   // 2142
-// The BOOT button is GPIO0 (ESP32-S3 dev boards). Short press: toggle the default roll <-> fanfold paper, or confirm a
-// Wi-Fi change staged on the setup page. Hold 5 s: forget the home Wi-Fi network. (GPIO0 held at reset = flashing mode.)
+// The BOOT button is GPIO0 (ESP32-S3 dev boards). A press toggles the default roll <-> fanfold paper (used when the
+// iPhone doesn't send a media-type). GPIO0 held at reset = flashing mode. Wi-Fi setup does not use any button.
 #define A80_MODE_BUTTON   0
 // iPhone Quality "Normal" (the default) = automatic darkness: pages darker than this print at printer darkness 01,
 // others at 02. Dense black at 02 makes the printer slow down and stutter, worst with a cold head (2026-11-12).
