@@ -20,7 +20,8 @@ It's a printer similar to [this one on Amazon](https://a.co/d/09d2KUnP).
   continuous perforated Letter.
 - **Quality:** Normal = automatic darkness (lighter for very dark pages, which print more cleanly), Best = darkest.
 - **Status on the iPhone:** a line under the printer's name ("Ready - battery 80%", "Off - press power button",
-  "Out of paper"), the battery under Printer Info → Supply Levels, and a status page under "Show Printer Web Page".
+  "Out of paper"; with the printer off it adds how long ago it was last connected, e.g. "Off - press power button
+  (last connected about 1h 25m ago)"), the battery under Printer Info → Supply Levels, and a status page under "Show Printer Web Page".
 - **Printer off:** a job waits on the ESP32 and prints as soon as the printer is switched on (up to 30 min).
 - **Errors:** if the cover is open or the paper is out when a page is due, the job waits and resumes once it's
   fixed; a fanfold stack running out on the last sheet counts as printed. (Errors in the middle of a page are not
@@ -70,6 +71,11 @@ At boot, and again each time the printer connects, the console prints an **ESP32
 date, ESP-IDF version, chip, MAC addresses, free internal RAM and PSRAM, flash and firmware space, why it last restarted,
 uptime, Wi-Fi state), directly above the printer's own block. The status page has the same list under "ESP32". It
 includes the MAC addresses, so mask them before pasting a log or page into an issue.
+
+**After updating from an older firmware:** earlier builds printed on port 8631; this one uses port 80. A phone or
+Mac that already knew the printer can keep the old address and fail with "The printer is no longer available" or a
+preview that won't load. Cancel the stuck jobs and **restart the iPhone** (on a Mac, remove the printer and add it
+again; this also refreshes the paper-type names).
 
 ## Home Wi-Fi (optional)
 

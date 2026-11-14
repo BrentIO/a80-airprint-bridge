@@ -158,7 +158,7 @@ static char p_reason[32] = "connecting-to-device", p_message[96] = "Printer is o
 // printer's location (shown under its name in the printer list; also the Bonjour TXT "note").
 static int p_battery = -2;          // last battery % read from the printer; -2 = never read (IPP "unknown")
 static bool p_batt_low;             // the printer's own low-battery flag (status bit 08)
-static char p_note[64] = "Off - press power button";
+static char p_note[96] = "Off - press power button";
 
 void ipp_set_battery(int pct, bool low)
 {

@@ -105,11 +105,17 @@ static void handle_conn(conn_t *c)
     setsockopt(c->fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
     char line[512], method[8] = "", path[64] = "";
 
+    int nreq = 0;
     for (;;) {   // keep-alive loop
-        if (read_line(c, line, sizeof line) <= 0) break;
+        if (read_line(c, line, sizeof line) <= 0) {
+            if (!nreq) weblog("A connection closed or timed out without sending a complete request [connection %d]", c->fd);
+            break;
+        }
+        nreq++;
         sscanf(line, "%7s %63s", method, path);
         long clen = -1;
         bool chunked = false, expect = false, close_after = false;
+        char ctype[48] = "", upgrade[32] = "";
         while (read_line(c, line, sizeof line) > 0) {
             char *v = strchr(line, ':');
             if (!v) continue;
@@ -119,7 +125,12 @@ static void handle_conn(conn_t *c)
             else if (!strcasecmp(line, "Transfer-Encoding") && strcasestr(v, "chunked")) chunked = true;
             else if (!strcasecmp(line, "Expect") && strcasestr(v, "100-continue")) expect = true;
             else if (!strcasecmp(line, "Connection") && strcasestr(v, "close")) close_after = true;
+            else if (!strcasecmp(line, "Content-Type")) snprintf(ctype, sizeof ctype, "%s", v);
+            else if (!strcasecmp(line, "Upgrade")) snprintf(upgrade, sizeof upgrade, "%s", v);
         }
+        // One line per request, so a log shows what a phone or browser really asked for (status page polls included).
+        weblog("Request: %s %s [connection %d%s%s%s%s]", method, path, c->fd, ctype[0] ? ", type " : "", ctype,
+               upgrade[0] ? ", asks to upgrade to " : "", upgrade);
         if (!strcmp(method, "GET") && !strncmp(path, "/strings/", 9)) {   // names of the paper types for the iPhone
             char cat[512];
             weblog("iPhone fetched the paper-name catalog [%s, connection %d]", path, c->fd);

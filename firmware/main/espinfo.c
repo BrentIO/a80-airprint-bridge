@@ -66,6 +66,25 @@ static void mac_line(item_t *it, int *n, const char *label, esp_mac_type_t t)
     if (esp_read_mac(m, t) == ESP_OK) put(it, n, label, "%02X:%02X:%02X:%02X:%02X:%02X", m[0], m[1], m[2], m[3], m[4], m[5]);
 }
 
+// Reading flash from a task whose stack is in PSRAM trips an ESP-IDF assert (the cache is off during the read), and the
+// web workers and the printer task are such tasks. So the flash-derived values are read once at boot, from the main
+// task, and only the saved text is used afterwards.
+static char flash_txt[16], space_txt[64];
+
+void espinfo_init(void)
+{
+    uint32_t fsize;
+    if (esp_flash_get_size(NULL, &fsize) == ESP_OK) snprintf(flash_txt, sizeof flash_txt, "%u MB", (unsigned)(fsize / (1024 * 1024)));
+    const esp_partition_t *p = esp_ota_get_running_partition();
+    if (!p) return;
+    esp_image_metadata_t meta;
+    const esp_partition_pos_t pos = {.offset = p->address, .size = p->size};
+    if (esp_image_get_metadata(&pos, &meta) == ESP_OK)
+        snprintf(space_txt, sizeof space_txt, "%u KB used of %u KB (%u%%)", (unsigned)(meta.image_len / 1024), (unsigned)(p->size / 1024),
+                 (unsigned)(meta.image_len * 100ull / p->size));
+    else snprintf(space_txt, sizeof space_txt, "%u KB partition", (unsigned)(p->size / 1024));
+}
+
 static int collect(item_t *it)
 {
     int n = 0;
@@ -97,17 +116,8 @@ static int collect(item_t *it)
     mem_line(it, &n, "Internal RAM", MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
     mem_line(it, &n, "PSRAM", MALLOC_CAP_SPIRAM);
 
-    uint32_t fsize;
-    if (esp_flash_get_size(NULL, &fsize) == ESP_OK) put(it, &n, "Flash", "%u MB", (unsigned)(fsize / (1024 * 1024)));
-    const esp_partition_t *p = esp_ota_get_running_partition();
-    if (p) {
-        esp_image_metadata_t meta;
-        const esp_partition_pos_t pos = {.offset = p->address, .size = p->size};
-        if (esp_image_get_metadata(&pos, &meta) == ESP_OK)
-            put(it, &n, "Firmware space", "%u KB used of %u KB (%u%%)", (unsigned)(meta.image_len / 1024), (unsigned)(p->size / 1024),
-                (unsigned)(meta.image_len * 100ull / p->size));
-        else put(it, &n, "Firmware space", "%u KB partition", (unsigned)(p->size / 1024));
-    }
+    if (flash_txt[0]) put(it, &n, "Flash", "%s", flash_txt);
+    if (space_txt[0]) put(it, &n, "Firmware space", "%s", space_txt);
 
     const char *rr = reset_text(esp_reset_reason());
     if (rr) put(it, &n, "Last restart", "%s", rr);

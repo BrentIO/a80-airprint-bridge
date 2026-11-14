@@ -54,7 +54,9 @@ typedef struct { uint8_t len, d[96]; } reply_t;
 
 static void start_scan(void);
 static void refresh_note(void);
-static char note_now[64] = "Off - press power button";   // the status line, also shown on the web page
+// When the printer's link last dropped, on the ESP32's own clock (time since boot). 0 = not since the ESP32 started.
+static volatile int64_t last_seen_us;
+static char note_now[96] = "Off - press power button";   // the status line, also shown on the web page
 static char pinfo[12][2][40];   // printer information (label, value) from the last connection, for the web page
 static int npinfo;
 static void pinfo_set(const char *label, const char *value)
@@ -338,6 +340,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
                event->disconnect.reason == 520 ? "link lost: printer switched off, restarted or out of range"
                : event->disconnect.reason == 531 ? "printer ended the connection" : "unexpected", event->disconnect.reason);
         conn = BLE_HS_CONN_HANDLE_NONE;
+        if (xEventGroupGetBits(ev) & EV_READY) last_seen_us = esp_timer_get_time();   // it was connected until now
         xEventGroupClearBits(ev, EV_READY);
         // Not an error: the printer powers itself off when idle. iOS shows this before a job is even sent.
         if (!job_active) ipp_set_printer_state(3, "connecting-to-device", "Printer is off - press its power button");
@@ -443,11 +446,27 @@ static void out(stream_t *s, const void *d, size_t n)
 static bool printer_low_battery;   // set only from the printer's status flag 08, never from the % reading
 
 // One-line status for the iPhone's printer list. Battery rounded to 5% so the line doesn't change on every wobble.
+// "less than a minute ago", "about 5m ago", "about 1h 25m ago", "about 2d 3h ago"; "" if it was never connected.
+static void age_text(char *out, size_t cap)
+{
+    int64_t t = last_seen_us;
+    if (!t) { if (cap) out[0] = 0; return; }
+    long m = (long)((esp_timer_get_time() - t) / 60000000LL);
+    if (m < 1) snprintf(out, cap, "less than a minute ago");
+    else if (m < 60) snprintf(out, cap, "about %ldm ago", m);
+    else if (m < 1440) snprintf(out, cap, "about %ldh %ldm ago", m / 60, m % 60);
+    else snprintf(out, cap, "about %ldd %ldh ago", m / 1440, m / 60 % 24);
+}
+
 static void refresh_note(void)
 {
-    char n[64];
-    if (!(xEventGroupGetBits(ev) & EV_READY)) snprintf(n, sizeof n, "Off - press power button");
-    else {
+    char n[96];
+    if (!(xEventGroupGetBits(ev) & EV_READY)) {
+        char age[32];
+        age_text(age, sizeof age);
+        if (age[0]) snprintf(n, sizeof n, "Off - press power button (last connected %s)", age);
+        else snprintf(n, sizeof n, "Off - press power button (never connected)");
+    } else {
         const char *st = cur_status < 0 ? "On" : cur_status & 0x02 ? "Cover open" : cur_status & 0x04 ? "Out of paper"
                        : cur_status & 0x01 ? "Printing" : "Ready";
         if (cur_battery >= 0) snprintf(n, sizeof n, "%s - battery %d%%%s", st, (cur_battery + 2) / 5 * 5,
@@ -772,6 +791,7 @@ static void print_task(void *arg)
         // idle: keep-alive + monitor every 30 s; check every 1 s while a fresh connection's info is still unlogged
         bool fresh = (xEventGroupGetBits(ev) & EV_READY) && !was_ready;
         if (xQueueReceive(jobs_q, &j, pdMS_TO_TICKS(fresh ? 1000 : 30000)) != pdTRUE) {
+            refresh_note();   // while the printer is off the "last connected ..." text moves on (the iPhone sees a change once a minute)
             idle_monitor();
             continue;
         }
@@ -794,10 +814,14 @@ static void print_task(void *arg)
                 // error: show "connecting" on the iPhone and wait, up to A80_WAIT_PRINTER_MIN.
                 int64_t now = esp_timer_get_time();
                 if (!wait0) {
+                    char age[32];
+                    age_text(age, sizeof age);
                     wait0 = now;
-                    weblog("Job %d waiting for the printer: it's off - press its power button (the job is stored here; "
-                           "waiting up to %d min)", j.job_id, A80_WAIT_PRINTER_MIN);
+                    weblog("Job %d waiting for the printer: it's off - press its power button (%s%s; the job is stored here; "
+                           "waiting up to %d min)", j.job_id, age[0] ? "last connected " : "never connected since the ESP32 started", age,
+                           A80_WAIT_PRINTER_MIN);
                 }
+                refresh_note();
                 ipp_set_printer_state(4, "connecting-to-device", "Printer is off - press its power button");
                 ipp_job_update(j.job_id, 3, "job-queued", -1);   // pending, not stopped
                 if (now - wait0 > A80_WAIT_PRINTER_MIN * 60000000LL) {
@@ -917,6 +941,9 @@ size_t printer_status_html(char *o, size_t cap)
     size_t n = 0;
 #define P(...) do { int k = snprintf(o + n, n < cap ? cap - n : 0, __VA_ARGS__); if (k > 0) n += k; } while (0)
     bool on = xEventGroupGetBits(ev) & EV_READY;
+    refresh_note();   // the "last connected ..." text is current whenever the page is loaded
+    char age[32];
+    age_text(age, sizeof age);
     P("<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
       "<meta http-equiv=refresh content=15><title>%s</title><style>"
       "body{font:16px -apple-system,sans-serif;margin:16px;color:#111;background:#fff}"
@@ -926,7 +953,9 @@ size_t printer_status_html(char *o, size_t cap)
       "td:first-child{color:#888;width:45%%}h2{font-size:15px;margin:22px 0 4px;color:#888;text-transform:uppercase}"
       "</style></head><body><h1>%s</h1><p class=s>%s</p>", A80_PRINTER_NAME, A80_PRINTER_NAME, note_now);
     P("<h2>Printer</h2><table>");
-    P("<tr><td>Connection</td><td>%s</td></tr>", on ? "Connected by Bluetooth" : "Not connected (off or out of range)");
+    if (on) P("<tr><td>Connection</td><td>Connected by Bluetooth</td></tr>");
+    else P("<tr><td>Connection</td><td>Not connected (off or out of range)</td></tr><tr><td>Last connected</td><td>%s</td></tr>",
+           age[0] ? age : "Never connected since the ESP32 started");
     if (cur_battery >= 0)
         P("<tr><td>Battery</td><td>%d%%%s%s</td></tr>", cur_battery, printer_low_battery ? " (printer reports LOW)" : "",
           on ? "" : " (last reading)");
