@@ -22,7 +22,7 @@ static void start_mdns(void)
     mdns_instance_name_set(A80_PRINTER_NAME);
     mdns_txt_item_t txt[] = {
         {"txtvers", "1"}, {"qtotal", "1"}, {"rp", "ipp/print"}, {"ty", "aixiqee A80"},
-        {"product", "(A80)"}, {"note", "Off - press power button"}, {"pdl", "image/urf"}, {"Color", "F"},
+        {"product", "(A80)"}, {"note", "Off - press power button"}, {"pdl", "image/urf,image/pwg-raster"}, {"Color", "F"},
         {"Duplex", "F"}, {"Copies", "F"}, {"UUID", A80_UUID}, {"URF", "CP1,IS1,MT1,RS300,V1.4,W8"},
         {"kind", "document,roll"}, {"PaperMax", "legal-A4"}, {"priority", "0"},
         {"adminurl", "http://" A80_HOSTNAME ".local/"},

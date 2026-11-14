@@ -106,3 +106,31 @@ Printing (IPP) and the web pages (status page, `/wifi`, the paper-name catalog) 
 `http://192.168.4.1/` and `http://a80printer.local/` work in a browser. Bonjour advertises port 80 in the service
 record, and `printer-uri-supported` is `ipp://a80printer.local:80/ipp/print`. Earlier firmware used 8631 for both;
 nothing in the AirPrint conversation requires a particular port, because Bonjour carries it.
+
+## Android: PWG raster (`image/pwg-raster`)
+
+Android's built-in print service (the Mopria-based "Default Print Service") finds the printer through the same
+`_ipp._tcp` Bonjour record but never sends `image/urf`: it sends PDF, PCLm or PWG raster, and a printer that offers none
+of those isn't usable. So the printer also accepts **PWG raster** (PWG 5102.4), advertised as
+`document-format-supported = image/urf, image/pwg-raster`, `pwg-raster-document-resolution-supported = 300dpi`,
+`pwg-raster-document-sheet-back = normal`, `pwg-raster-document-type-supported = sgray_8` (and `pdl` in the TXT record).
+Research and the plan are in issue #27. **Not yet tested on an Android phone.**
+
+The reader (`firmware/main/urfconv.c`) sniffs the first bytes: `UNIRAST` = URF, `RaS2` = PWG raster. The row coding is
+the same in both (a repeat count, then PackBits-like runs); only the headers differ.
+
+| | URF | PWG raster |
+|---|---|---|
+| File header | 12 bytes: `UNIRAST\0`, page count | 4 bytes: `RaS2`; no page count (the stream ends after the last page) |
+| Page header | 32 bytes: bits per pixel at 0, width 12, height 16, dpi 20 | 1796 bytes, big-endian: `HWResolution` 276, `Width` 372, `Height` 376, `BitsPerColor` 384, `BitsPerPixel` 388, `BytesPerLine` 392, `ColorOrder` 396 (0), `ColorSpace` 400 (18 = sgray, 19 = srgb) |
+
+Accepted PWG types: `sgray_8` (8-bit gray, what Android sends a monochrome printer) and `srgb_8`. Others are refused
+with `document-format-error`. A PWG stream is complete when it ends between pages.
+
+For a job from a PWG-raster client, only our roll name (`a80-paper-roll`) selects the roll. Android's default paper type
+words (`auto`, `stationery`) print on the continuous paper. An iPhone job still treats the old standard keyword
+`stationery` as the roll, for phones that remember the old names.
+
+Test files: `firmware/test/mkpwg.py` writes PWG raster from the spec; its output was decoded with CUPS's own
+`cupsRasterReadHeader2`/`cupsRasterReadPixels` (40 random images, identical pixels) before the fixture was committed.
+CI runs `firmware/test/raster_host_test.c` against `firmware/test/fixtures/checker.pwg`.
