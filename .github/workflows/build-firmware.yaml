@@ -96,6 +96,8 @@ jobs:
           . "$IDF_PATH/export.sh" >/dev/null
           # a release is named by its version, a development build by its commit
           idf.py merge-bin -o "a80-airprint-${A80_VERSION:-${A80_COMMIT::7}}.bin"
+          # the app alone: flashed at 0x10000 it leaves the saved Wi-Fi (NVS), bootloader and partition table alone
+          cp build/a80airprint.bin "build/a80-airprint-${A80_VERSION:-${A80_COMMIT::7}}-app.bin"
           ls -l build/a80-airprint-*.bin
 
       - name: Name the artifact
@@ -107,7 +109,7 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: ${{ steps.name.outputs.artifact }}
-          # One image, flash at address 0x0 (README.md)
+          # Two images (README.md): the merged one flashes at 0x0, the "-app" one at 0x10000
           path: firmware/build/a80-airprint-*.bin
           if-no-files-found: error
           retention-days: 14

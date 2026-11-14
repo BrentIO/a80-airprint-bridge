@@ -49,8 +49,20 @@ docker run --rm -v "$PWD":/project -w /project espressif/idf:v5.5 idf.py merge-b
 Flash `firmware/build/merged.bin` at address **0x0**, for example with the web flasher
 (https://espressif.github.io/esptool-js/, Chrome) or `esptool.py write_flash 0x0 merged.bin`.
 
-Every pull request is also built in GitHub Actions: download the merged image from the run's **Artifacts**
-and flash it at **0x0**, no local build needed.
+Every pull request is also built in GitHub Actions: download the images from the run's **Artifacts**, no local build
+needed. There are two:
+
+| Image | Flash at | Use it for |
+|---|---|---|
+| `a80-airprint-<id>.bin` (merged) | **0x0** | The first flash of a board, or after the bootloader/partition table changed. **Erases the saved home Wi-Fi.** |
+| `a80-airprint-<id>-app.bin` | **0x10000** | Updating a board that already runs this firmware. **Keeps the saved home Wi-Fi** and the paper setting. |
+
+The app address is **0x10000** (a 1 and four zeros), not 0x1000: flashing the app at 0x1000 overwrites the bootloader
+and the board won't boot ("Invalid image block, can't boot"). If that happens, flash the merged image at 0x0 to
+recover.
+
+In the web flasher leave "Erase all flash" off. If an update ever needs the merged image (the release notes say so),
+set the home network up again afterwards.
 
 Settings are in [`firmware/main/config.h`](firmware/main/config.h): hotspot name, printer name, the printer's BLE
 name (`A80_BLE_NAME`; empty = the first A80 found), auto power-off, fanfold page calibration.
@@ -100,12 +112,13 @@ network, changes the network later. No button on the ESP32 is involved.
 **Security notes:** the hotspot is open, so anyone within range can join it, open the setup page and change or forget
 the home network, and the password you enter crosses the air unencrypted. At home the same page is reachable by
 anyone on your home network. The saved password is stored in the ESP32's flash in plain text and is never logged.
-A full firmware flash (the `0x0` image) erases it, along with the paper-mode setting.
+Flashing the merged image (at `0x0`) erases it; the `-app` image (at `0x10000`) keeps it.
 
 ## Releases
 
-Releases are named `YYYY.MM.NN` (for example `2026.11.01`) and listed under **Releases**. Each one has the merged
-firmware image attached (`a80-airprint-<version>.bin`): flash it at **0x0**, no build needed.
+Releases are named `YYYY.MM.NN` (for example `2026.11.01`) and listed under **Releases**. Each one has two
+images attached: the merged `a80-airprint-<version>.bin` (flash at **0x0**) and `a80-airprint-<version>-app.bin`
+(flash at **0x10000** to update without losing the saved Wi-Fi), no build needed.
 
 To make a release (maintainers): **Actions → 🚀 Release → Run workflow** on `main`, and enter the version. It checks
 the version format and that the tag doesn't exist yet, runs the same build every pull request must pass (stamped with

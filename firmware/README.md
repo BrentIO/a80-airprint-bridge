@@ -52,7 +52,6 @@ hotspot fallback timing, Bonjour on the home network, and printing over it.
 ## Roadmap
 
 - Verify fanfold page step `A80_FANFOLD_FIX` = 27 over longer runs (the perforation should stay at the tear bar).
-- Smaller **app-only update image** (flash at 0x10000) so saved settings (paper mode) survive firmware updates.
 - **Error path test** (cover open / paper out mid-job → iOS alert → resume).
 - iOS **PDF print preview** doesn't render with the ESP32 (it did with an earlier Mac-based prototype).
 - Roll mode: trim trailing blank rows.

@@ -81,4 +81,6 @@ jobs:
           name: ${{ inputs.version }}
           generate_release_notes: true
           fail_on_unmatched_files: true
-          files: dist/a80-airprint-${{ inputs.version }}.bin
+          files: |
+            dist/a80-airprint-${{ inputs.version }}.bin
+            dist/a80-airprint-${{ inputs.version }}-app.bin
