@@ -431,6 +431,24 @@ size_t wifi_describe_html(char *out, size_t cap)
     return b.n;
 }
 
+size_t wifi_describe_text(char *out, size_t cap)
+{
+    char ssid[33], a[16];
+    xSemaphoreTake(lock, portMAX_DELAY);
+    strlcpy(ssid, home_ssid, sizeof ssid);
+    xSemaphoreGive(lock);
+    wifi_address(a, sizeof a);
+    int n;
+    switch (mode) {
+    case M_HOME: n = snprintf(out, cap, "home Wi-Fi \"%s\", address %s", ssid, a); break;
+    case M_LOST: n = snprintf(out, cap, "home Wi-Fi \"%s\" lost, reconnecting", ssid); break;
+    default:
+        n = snprintf(out, cap, "hotspot \"%s\", address %s%s%s%s", A80_AP_SSID, a, have_home ? ", looking for home Wi-Fi \"" : "",
+                     have_home ? ssid : "", have_home ? "\"" : "");
+    }
+    return n < 0 ? 0 : (size_t)n < cap ? (size_t)n : cap - 1;
+}
+
 size_t wifi_setup_html(char *out, size_t cap)
 {
     static net_t nets[32];   // one request at a time: the radio can only scan once anyway

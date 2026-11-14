@@ -14,6 +14,9 @@ void wifi_address(char *out, size_t cap);
 // One line for the status page: "Home Wi-Fi ...", or the hotspot. HTML, already escaped.
 size_t wifi_describe_html(char *out, size_t cap);
 
+// The same as plain text (console).
+size_t wifi_describe_text(char *out, size_t cap);
+
 // GET /wifi: lists the networks in range (strongest first) with a form. Scans, so it takes a few seconds.
 size_t wifi_setup_html(char *out, size_t cap);
 // POST /wifi (form body, NUL-terminated): "ssid"/"pick" + "pass" to change the home network (the Wi-Fi task then tries it

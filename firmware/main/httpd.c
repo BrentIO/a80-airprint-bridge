@@ -130,7 +130,7 @@ static void handle_conn(conn_t *c)
         if (!strcmp(method, "GET")) {
             // /wifi: the home Wi-Fi setup page; anything else: the status page (iOS "Printer Website")
             bool setup = !strncmp(path, "/wifi", 5);
-            size_t cap = setup ? 16384 : 8192;
+            size_t cap = setup ? 16384 : 12288;
             char *page = heap_caps_malloc(cap, MALLOC_CAP_SPIRAM);
             if (page) {
                 respond(c->fd, "text/html; charset=utf-8", page,
