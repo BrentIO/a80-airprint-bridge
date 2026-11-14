@@ -21,6 +21,7 @@
 
 typedef struct {
     int fd;
+    char ip[16];   // the client's address, for the log
     uint8_t buf[2048];
     size_t pos, len;
 } conn_t;
@@ -108,7 +109,7 @@ static void handle_conn(conn_t *c)
     int nreq = 0;
     for (;;) {   // keep-alive loop
         if (read_line(c, line, sizeof line) <= 0) {
-            if (!nreq) weblog("A connection closed or timed out without sending a complete request [connection %d]", c->fd);
+            if (!nreq) weblog("A connection closed or timed out without sending a complete request [connection %d from %s]", c->fd, c->ip);
             break;
         }
         nreq++;
@@ -129,12 +130,12 @@ static void handle_conn(conn_t *c)
             else if (!strcasecmp(line, "Upgrade")) snprintf(upgrade, sizeof upgrade, "%s", v);
         }
         // One line per request, so a log shows what a phone or browser really asked for (status page polls included).
-        weblog("Request: %s %s [connection %d%s%s%s%s%s%s%s]", method, path, c->fd, ctype[0] ? ", type " : "", ctype,
+        weblog("Request: %s %s [connection %d from %s%s%s%s%s%s%s%s]", method, path, c->fd, c->ip, ctype[0] ? ", type " : "", ctype,
                upgrade[0] ? ", asks to upgrade to " : "", upgrade, chunked ? ", chunked body" : "",
                expect ? ", expects 100-continue" : "", clen >= 0 ? ", with length" : "");
         if (!strcmp(method, "GET") && !strncmp(path, "/strings/", 9)) {   // names of the paper types for the iPhone
             char cat[512];
-            weblog("Client fetched the paper-name catalog [%s, connection %d]", path, c->fd);
+            weblog("Client fetched the paper-name catalog [%s, connection %d from %s]", path, c->fd, c->ip);
             respond(c->fd, "text/strings; charset=utf-8", cat, ipp_strings_en(cat, sizeof cat));
             if (close_after) break;
             continue;
@@ -186,15 +187,15 @@ static void handle_conn(conn_t *c)
             n += k;
         }
         if (!hdr || hl <= 0) {
-            weblog("Client sent a broken or incomplete request; ignored [connection %d, %u bytes]", c->fd, (unsigned)n);
+            weblog("Client sent a broken or incomplete request; ignored [connection %d from %s, %u bytes]", c->fd, c->ip, (unsigned)n);
             free(hdr);
             break;
         }
-        ipp_txn_t *t = ipp_begin(hdr, hl);
+        ipp_txn_t *t = ipp_begin(hdr, hl, c->ip);
         bool ok = true;
         if (n > (size_t)hl) ok = ipp_doc(t, hdr + hl, n - hl) == 0;
         for (int k; ok && (k = body_read(c, &br, hdr, cap)) != 0;) {
-            if (k < 0) { weblog("Upload from the client was cut off part-way [connection %d]", c->fd); ok = false; break; }
+            if (k < 0) { weblog("Upload from the client was cut off part-way [connection %d from %s]", c->fd, c->ip); ok = false; break; }
             ok = ipp_doc(t, hdr, k) == 0;
         }
         free(hdr);
@@ -206,7 +207,7 @@ static void handle_conn(conn_t *c)
         if (!ok) break;
         if (close_after) break;
     }
-    weblog("Client closed a connection [connection %d]", c->fd);
+    weblog("Client closed a connection [connection %d from %s]", c->fd, c->ip);
     close(c->fd);
     free(c);
 }
@@ -239,10 +240,11 @@ static void server_task(void *arg)
         if (fd < 0) continue;
         conn_t *c = heap_caps_calloc(1, sizeof *c, MALLOC_CAP_SPIRAM);
         c->fd = fd;
-        weblog("Client opened a connection [connection %d from %s, %u KB internal RAM free]", fd, inet_ntoa(peer.sin_addr),
+        snprintf(c->ip, sizeof c->ip, "%s", inet_ntoa(peer.sin_addr));
+        weblog("Client opened a connection [connection %d from %s, %u KB internal RAM free]", fd, c->ip,
                (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024));
         if (uxQueueSpacesAvailable(conn_q) == 0)
-            weblog("Busy: all %d connection handlers in use, this one waits its turn [connection %d]", WORKERS, fd);
+            weblog("Busy: all %d connection handlers in use, this one waits its turn [connection %d from %s]", WORKERS, fd, c->ip);
         xQueueSend(conn_q, &c, portMAX_DELAY);
     }
 }
