@@ -15,6 +15,9 @@ It's a printer similar to [this one on Amazon](https://a.co/d/09d2KUnP).
 ## What works
 
 - The iPhone finds **A80 Thermal** on the ESP32's open hotspot and prints from any app.
+- **Android** prints too (tested: Chrome on an Android tablet, over home Wi-Fi). Print → **All printers** or the printer list shows **A80 Thermal**.
+  Android lists the sizes as plain **Letter** and **ISO A4** and warns that the print passes through other services; both are
+  Android's own wording and can't be changed from the printer.
 - **Paper:** **Continuous Perforated Letter** (fanfold; pages land on the perforations) is the default, and
   **Paper Roll** is the other choice, both under Media & Quality. A job that doesn't name a paper type prints as
   continuous perforated Letter.
@@ -72,7 +75,8 @@ name (`A80_BLE_NAME`; empty = the first A80 found), auto power-off, fanfold page
 1. Switch on the printer and power the ESP32.
 2. On the iPhone, join the Wi-Fi network **A80-Print** (no password, no internet), or, if you've set up a home
    network (below), just stay on your home Wi-Fi.
-3. Share → Print → **A80 Thermal**.
+3. Share → Print → **A80 Thermal**. On Android, open the app's menu → Print and pick **A80 Thermal** (the phone must be on the
+   same network as the printer; Android's built-in print service must be on, under Settings → Connected devices → Printing).
 
 The serial console (115200) logs every step in plain English, with the printer traffic in hex.
 The first line says which firmware is running, for example `firmware version 9999.99.99, commit 8c711ad`
