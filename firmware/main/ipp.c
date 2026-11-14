@@ -1,5 +1,6 @@
 // Minimal AirPrint IPP server logic (see docs/AIRPRINT.md).
 #include "ipp.h"
+#include "wifi.h"
 #include "mdns.h"
 
 #include <stdbool.h>
@@ -311,7 +312,10 @@ static void printer_attributes(buf_t *b)
     a_str(b, T_TEXT, "printer-supply-description", "Battery");
     a_str(b, T_TEXT, "printer-make-and-model", "aixiqee A80");
     a_str(b, T_NAME, "printer-name", A80_PRINTER_NAME);
-    a_str(b, T_URI, "printer-more-info", "http://" A80_AP_IP ":8631/");
+    char more[48], addr[16];
+    wifi_address(addr, sizeof addr);
+    snprintf(more, sizeof more, "http://%s:%d/", addr, A80_IPP_PORT);
+    a_str(b, T_URI, "printer-more-info", more);
     a_res(b, "printer-resolution-default", 300);
     a_res(b, "printer-resolution-supported", 300);
     a_int(b, T_ENUM, "printer-state", p_state);

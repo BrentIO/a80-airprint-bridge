@@ -56,13 +56,37 @@ name (`A80_BLE_NAME`; empty = the first A80 found), auto power-off, fanfold page
 ## Use
 
 1. Switch on the printer and power the ESP32.
-2. On the iPhone, join the Wi-Fi network **A80-Print** (no password, no internet).
+2. On the iPhone, join the Wi-Fi network **A80-Print** (no password, no internet), or, if you've set up a home
+   network (below), just stay on your home Wi-Fi.
 3. Share → Print → **A80 Thermal**.
 
 The serial console (115200) logs every step in plain English, with the printer traffic in hex.
 The first line says which firmware is running, for example `firmware version 9999.99.99, commit 8c711ad`
 (development builds use the placeholder version `9999.99.99`; releases carry their `YYYY.MM.NN` version). The
 same appears on the status page under "Show Printer Web Page".
+
+## Home Wi-Fi (optional)
+
+At home the printer can join your own Wi-Fi, so the iPhone prints without switching networks. Away from home (in the
+car, say) it falls back to its own **A80-Print** hotspot.
+
+**Set it up:** join the hotspot, open **Show Printer Web Page** (or `http://192.168.4.1:8631/wifi`), pick your network
+from the list (strongest signal first), enter the password and tap **Save**. Then **press the BOOT button on the
+ESP32 (GPIO0) within 60 seconds** to confirm. The printer tries the network; only if it really joins is the
+network saved, the hotspot turns off and the printer shows up on your home Wi-Fi. If it can't join (wrong password,
+out of range) nothing changes. The same page, reached on the home network, changes the network later.
+
+**How it behaves:**
+- At boot it tries the saved network for about 12 seconds, then starts the hotspot.
+- If the home Wi-Fi drops, it reconnects for 20 seconds, then starts the hotspot and keeps looking for home every
+  45 seconds, but only while no phone is on the hotspot (looking scans other channels, which interrupts a transfer).
+- **Forget the saved network:** hold BOOT for 5 seconds. The printer goes back to hotspot only.
+- Nothing is required: with no home network saved it behaves as before.
+
+**Security notes:** the hotspot is open, so the password you enter on the setup page crosses the air unencrypted, and
+that is why the BOOT button must confirm: someone near the car can't change the network without touching the ESP32.
+The saved password is stored in the ESP32's flash in plain text and is never logged. A full firmware flash (the
+`0x0` image) erases it, along with the paper-mode setting.
 
 ## Releases
 

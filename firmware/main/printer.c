@@ -8,6 +8,7 @@
 //   sheet; running out of paper at the end of a fanfold page is the stack ending, not a failed page
 // - BOOT button toggles the default paper mode (used when the iPhone doesn't send a media-type)
 #include "printer.h"
+#include "wifi.h"
 
 #include <stdarg.h>
 #include <string.h>
@@ -895,21 +896,28 @@ static void print_task(void *arg)
     }
 }
 
-static void button_task(void *arg)   // BOOT button: toggle the default paper mode
+static void button_task(void *arg)   // BOOT button (GPIO0): short press / 5 s hold, see config.h
 {
     gpio_config_t io = {.pin_bit_mask = 1ULL << A80_MODE_BUTTON, .mode = GPIO_MODE_INPUT,
                         .pull_up_en = GPIO_PULLUP_ENABLE};
     gpio_config(&io);
-    weblog("Paper type: %s (press the ESP32's BOOT button to switch)",
-           ipp_fanfold_default() ? "fanfold (continuous Letter)" : "roll");
-    int held = 0;
+    weblog("Paper type: %s (press the ESP32's BOOT button, GPIO%d, to switch)",
+           ipp_fanfold_default() ? "fanfold (continuous Letter)" : "roll", A80_MODE_BUTTON);
+    int held = 0;       // 50 ms ticks the button has been down
+    bool used = false;  // the hold already did its job (forgot the network): ignore the release
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(50));
         ipp_fanfold_save();
         if (gpio_get_level(A80_MODE_BUTTON) == 0) {
-            if (++held == 2) ipp_set_fanfold_default(!ipp_fanfold_default());   // 100 ms debounce, once per press
+            if (++held == 100 && !used) {   // 5 s
+                wifi_forget();
+                used = true;
+            }
         } else {
+            // acts on release, so a long hold isn't also a short press
+            if (held >= 2 && held < 30 && !used && !wifi_confirm_pressed()) ipp_set_fanfold_default(!ipp_fanfold_default());
             held = 0;
+            used = false;
         }
     }
 }
@@ -950,6 +958,11 @@ size_t printer_status_html(char *o, size_t cap)
     for (int i = 0; i < npinfo; i++) P("<tr><td>%s</td><td>%s</td></tr>", pinfo[i][0], pinfo[i][1]);
     if (!npinfo) P("<tr><td colspan=2>Details appear once the printer has been switched on.</td></tr>");
     P("</table><h2>Bridge</h2><table>");
+    {
+        char w[160];
+        wifi_describe_html(w, sizeof w);
+        P("<tr><td>Wi-Fi</td><td>%s<br><a href=/wifi>Change Wi-Fi</a></td></tr>", w);
+    }
     P("<tr><td>Paper</td><td>%s</td></tr>", ipp_fanfold_default() ? "Fanfold (continuous Letter)" : "Roll");
     int64_t up = esp_timer_get_time() / 1000000;
     P("<tr><td>Up for</td><td>%dh %02dm</td></tr>", (int)(up / 3600), (int)(up / 60 % 60));
