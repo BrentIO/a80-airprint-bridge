@@ -31,7 +31,7 @@ static void start_mdns(void)
                                      sizeof txt / sizeof *txt));
     mdns_service_subtype_add_for_host(A80_PRINTER_NAME, "_ipp", "_tcp", NULL, "_universal");
     mdns_service_subtype_add_for_host(A80_PRINTER_NAME, "_ipp", "_tcp", NULL, "_print");
-    weblog("Announcing the printer \"%s\" to iPhones [Bonjour %s.local, _ipp._tcp,_universal, port %d]", A80_PRINTER_NAME, A80_HOSTNAME,
+    weblog("Announcing the printer \"%s\" to clients [Bonjour %s.local, _ipp._tcp,_universal, port %d]", A80_PRINTER_NAME, A80_HOSTNAME,
            A80_IPP_PORT);
 }
 

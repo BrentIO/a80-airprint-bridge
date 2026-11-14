@@ -133,7 +133,7 @@ static void handle_conn(conn_t *c)
                upgrade[0] ? ", asks to upgrade to " : "", upgrade);
         if (!strcmp(method, "GET") && !strncmp(path, "/strings/", 9)) {   // names of the paper types for the iPhone
             char cat[512];
-            weblog("iPhone fetched the paper-name catalog [%s, connection %d]", path, c->fd);
+            weblog("Client fetched the paper-name catalog [%s, connection %d]", path, c->fd);
             respond(c->fd, "text/strings; charset=utf-8", cat, ipp_strings_en(cat, sizeof cat));
             if (close_after) break;
             continue;
@@ -185,7 +185,7 @@ static void handle_conn(conn_t *c)
             n += k;
         }
         if (!hdr || hl <= 0) {
-            weblog("iPhone sent a broken or incomplete request; ignored [connection %d, %u bytes]", c->fd, (unsigned)n);
+            weblog("Client sent a broken or incomplete request; ignored [connection %d, %u bytes]", c->fd, (unsigned)n);
             free(hdr);
             break;
         }
@@ -193,7 +193,7 @@ static void handle_conn(conn_t *c)
         bool ok = true;
         if (n > (size_t)hl) ok = ipp_doc(t, hdr + hl, n - hl) == 0;
         for (int k; ok && (k = body_read(c, &br, hdr, cap)) != 0;) {
-            if (k < 0) { weblog("Upload from the iPhone was cut off part-way [connection %d]", c->fd); ok = false; break; }
+            if (k < 0) { weblog("Upload from the client was cut off part-way [connection %d]", c->fd); ok = false; break; }
             ok = ipp_doc(t, hdr, k) == 0;
         }
         free(hdr);
@@ -205,7 +205,7 @@ static void handle_conn(conn_t *c)
         if (!ok) break;
         if (close_after) break;
     }
-    weblog("iPhone closed a connection [connection %d]", c->fd);
+    weblog("Client closed a connection [connection %d]", c->fd);
     close(c->fd);
     free(c);
 }
@@ -238,7 +238,7 @@ static void server_task(void *arg)
         if (fd < 0) continue;
         conn_t *c = heap_caps_calloc(1, sizeof *c, MALLOC_CAP_SPIRAM);
         c->fd = fd;
-        weblog("iPhone opened a connection [connection %d from %s, %u KB internal RAM free]", fd, inet_ntoa(peer.sin_addr),
+        weblog("Client opened a connection [connection %d from %s, %u KB internal RAM free]", fd, inet_ntoa(peer.sin_addr),
                (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024));
         if (uxQueueSpacesAvailable(conn_q) == 0)
             weblog("Busy: all %d connection handlers in use, this one waits its turn [connection %d]", WORKERS, fd);

@@ -142,7 +142,7 @@ static void media_col(buf_t *b, const char *name, const char *key, int w, int h,
 size_t ipp_strings_en(char *out, size_t cap)
 {
     int n = snprintf(out, cap,
-                     "/* Paper types shown on the iPhone */\n"
+                     "/* Paper types shown in the print dialog */\n"
                      "\"media-type\" = \"Paper Type\";\n"
                      "\"media-type." MT_FANFOLD_CUSTOM "\" = \"" A80_PAPER_FANFOLD_NAME "\";\n"
                      "\"media-type." MT_ROLL_CUSTOM "\" = \"" A80_PAPER_ROLL_NAME "\";\n"
@@ -476,14 +476,14 @@ ipp_txn_t *ipp_begin(const uint8_t *hdr, size_t len)
         int k = r->op == 0x0B ? 0 : r->op == 0x09 ? 1 : -1;
         int64_t now = esp_timer_get_time();
         static const char *const what[] = {
-            [0x02] = "iPhone sent a print job", [0x04] = "iPhone asked whether a job would be accepted",
-            [0x05] = "iPhone started a print job", [0x06] = "iPhone is sending the document",
-            [0x08] = "iPhone cancelled a job", [0x09] = "iPhone is checking job progress",
-            [0x0A] = "iPhone asked for the job list", [0x0B] = "iPhone is checking printer status and settings",
-            [0x39] = "iPhone cancelled its jobs", [0x3B] = "iPhone closed the job",
-            [0x3C] = "iPhone asked the printer to identify itself",
+            [0x02] = "Client sent a print job", [0x04] = "Client asked whether a job would be accepted",
+            [0x05] = "Client started a print job", [0x06] = "Client is sending the document",
+            [0x08] = "Client cancelled a job", [0x09] = "Client is checking job progress",
+            [0x0A] = "Client asked for the job list", [0x0B] = "Client is checking printer status and settings",
+            [0x39] = "Client cancelled its jobs", [0x3B] = "Client closed the job",
+            [0x3C] = "Client asked the printer to identify itself",
         };
-        const char *w = r->op < (int)(sizeof what / sizeof *what) && what[r->op] ? what[r->op] : "iPhone sent an unknown request";
+        const char *w = r->op < (int)(sizeof what / sizeof *what) && what[r->op] ? what[r->op] : "Client sent an unknown request";
         if (k < 0) weblog("%s [IPP %s #%d]", w, opname(r->op), r->req_id);
         else if (now - last_poll[k] >= 30000000LL) {
             if (polls[k]) weblog("%s [IPP %s #%d; %d more in the last 30 s not logged]", w, opname(r->op), r->req_id, polls[k]);
@@ -580,7 +580,7 @@ size_t ipp_finish(ipp_txn_t *t, uint8_t **resp)
             a80_page_t *p = urfconv_page(t->conv, i);
             size_t black = 0, nb = (size_t)p->bytes_per_row * p->rows;
             for (size_t k = 0; k < nb; k++) black += __builtin_popcount(p->bits[k]);
-            weblog("Job %d page %d converted: %u%% black [iPhone image %dx%d at %d dpi, %d-bit -> %dx%d printer dots]",
+            weblog("Job %d page %d converted: %u%% black [client image %dx%d at %d dpi, %d-bit -> %dx%d printer dots]",
                    j->id, i + 1, (unsigned)(black * 100 / (nb ? nb * 8 : 1)), p->src_w,
                    p->src_h, p->src_dpi, p->src_bpp, p->width, p->rows);
         }
