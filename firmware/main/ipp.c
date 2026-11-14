@@ -382,7 +382,6 @@ typedef struct {
     char color_mode[24], sides[24], size_name[32], source[24], user[40];
     int copies, orient, size_x, size_y, margin_top;
     size_t doc_off;
-    char col_hex[160];   // raw bytes of the first collection (media-col), as hex, for the log
 } req_t;
 
 static const char *opname(int op)
@@ -416,9 +415,7 @@ static int parse(const uint8_t *d, size_t n, req_t *r)
     int group = 0, idx = 0, depth = 0;
     bool ended = false;
     char mname[24] = "";
-    size_t col_start = 0;
     while (i < n) {
-        size_t tag_at = i;
         uint8_t t = d[i++];
         if (t == G_END) { ended = true; break; }
         if (t < 0x10) { group = t; continue; }
@@ -446,16 +443,8 @@ static int parse(const uint8_t *d, size_t n, req_t *r)
             else if (t == T_INTEGER && !strcmp(mname, "media-top-margin")) r->margin_top = iv;
             if (t != T_BEGCOL) mname[0] = 0;
         }
-        if (t == T_BEGCOL) { if (!depth && !r->col_hex[0]) col_start = tag_at; depth++; continue; }
-        if (t == T_ENDCOL) {
-            if (depth == 1 && col_start) {
-                size_t m = i - col_start, k = 0;
-                for (size_t j = 0; j < m && k + 3 < sizeof r->col_hex; j++) k += snprintf(r->col_hex + k, sizeof r->col_hex - k, "%02X", d[col_start + j]);
-                col_start = 0;
-            }
-            depth--;
-            continue;
-        }
+        if (t == T_BEGCOL) { depth++; continue; }
+        if (t == T_ENDCOL) { depth--; continue; }
         if (depth || !nl) continue;   // only top-level named attributes matter here
 #define IS(s) (nl == strlen(s) && !memcmp(name, s, nl))
 #define COPY(dst) snprintf(dst, sizeof dst, "%.*s", vl, (const char *)v)
@@ -529,8 +518,6 @@ ipp_txn_t *ipp_begin(const uint8_t *hdr, size_t len)
         weblog("Job request from \"%s\": format %s, paper type '%s', size %s (%dx%d), source %s, top margin %d, color %s, "
                "sides %s, quality %d, copies %d, orientation %d", r->user, r->format[0] ? r->format : "(none)", r->media_type,
                r->size_name, r->size_x, r->size_y, r->source, r->margin_top, r->color_mode, r->sides, r->quality, r->copies, r->orient);
-    if (r->op == 0x02 && !strcmp(r->format, "image/pwg-raster"))
-        weblog("Paper request bytes from this client [media-col %s]", r->col_hex);
     if (r->ver_major < 1 || r->ver_major > 2) t->status = 0x0503;
     else if (r->req_id == 0 || !r->first_ok || !r->has_uri) t->status = 0x0400;
     if (t->status) return t;
