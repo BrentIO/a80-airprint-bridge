@@ -43,8 +43,9 @@ Step history (each image = previous + the change):
 `M_HOTSPOT` (hotspot up, home retried every 45 s while no phone is on it). The settings are in `config.h`
 (`A80_HOME_*`). The saved network lives in NVS namespace `wifi` (keys `ssid`, `pass`), read in the main task and
 written by the Wi-Fi task (internal stack; PSRAM-stack tasks must not touch NVS). A new network is saved only after a
-successful join. The setup page is `GET/POST /wifi` (served by `httpd.c`): the POST stages the choice (or `forget=1`)
-and the Wi-Fi task acts on it within a second. The form is parsed by `formparse.h`, which has a host test
+successful join. The setup page is `GET/POST /wifi` (served by `httpd.c`): the POST stages the choice (or `forget=1`), the Wi-Fi
+task acts on it within a second, and the POST waits for the outcome (`join_state`) and answers with the new address
+or the error, while the hotspot is still on (`A80_SETUP_RESULT_S`). The form is parsed by `formparse.h`, which has a host test
 (`test/form_host_test.c`, run by CI). No button is involved. Not yet verified on hardware: joining a real network,
 hotspot fallback timing, Bonjour on the home network, and printing over it.
 

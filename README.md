@@ -73,8 +73,9 @@ car, say) it falls back to its own **A80-Print** hotspot.
 
 **Set it up:** join the hotspot, open **Show Printer Web Page** (or `http://192.168.4.1:8631/wifi`), pick your
 network from the list (strongest signal first), enter the password and tap **Save**. The printer then tries the
-network, and **only if it really joins is it saved**: the hotspot turns off and the printer shows up on your home
-Wi-Fi. If it can't join (wrong password, out of range) nothing changes. The same page, reached on the home
+network, and **only if it really joins is it saved**. The page that comes back shows the printer's **new address**
+on your network (or **why it couldn't join**), and the hotspot stays on for about 20 seconds so you can read it,
+then turns off. If it can't join (wrong password, out of range) nothing changes. The same page, reached on the home
 network, changes the network later. No button on the ESP32 is involved.
 
 **How it behaves:**

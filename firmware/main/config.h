@@ -7,6 +7,7 @@
 // Home Wi-Fi (optional; set up on the printer's /wifi page)
 #define A80_HOME_JOIN_S        12   // at boot, and when trying a new network: wait this long for an address
 #define A80_HOME_LOST_GRACE_S  20   // home network dropped: reconnect this long, then start the hotspot
+#define A80_SETUP_RESULT_S     20   // after a successful setup the hotspot stays on this long, so the result page can be read
 #define A80_HOME_RETRY_S       45   // hotspot running: look for the home network this often (only if no phone is on it)
 
 // AirPrint identity

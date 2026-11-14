@@ -42,6 +42,12 @@ static char home_ssid[33], home_pass[65];
 static char pend_ssid[33], pend_pass[65];
 static int64_t lost_us, last_try_us, drop_ap_us;
 
+// Outcome of the last change made on the setup page, read by the HTTP worker that is waiting to answer the phone.
+typedef enum { JR_IDLE, JR_PENDING, JR_OK, JR_FAIL } jstate_t;
+static volatile jstate_t join_state = JR_IDLE;
+static char join_ip[16];
+static const char *join_why = "";
+
 // ---------------------------------------------------------------- saved network (flash)
 static void nvs_load(void)
 {
@@ -186,7 +192,10 @@ static void apply_requested_change(void)
     pend_ssid[0] = pend_pass[0] = 0;
     xSemaphoreGive(lock);
     pend_ready = false;
-    if (!ssid[0]) return;
+    if (!ssid[0]) {
+        join_state = JR_IDLE;
+        return;
+    }
 
     weblog("Wi-Fi: trying to join \"%s\" (up to %d s)", ssid, A80_HOME_JOIN_S);
     if (try_join(ssid, pass, A80_HOME_JOIN_S)) {
@@ -197,14 +206,18 @@ static void apply_requested_change(void)
         xSemaphoreGive(lock);
         have_home = true;
         weblog("Wi-Fi: joined \"%s\" and saved it as the home network", ssid);
+        wifi_address(join_ip, sizeof join_ip);
+        join_state = JR_OK;   // the phone's page is waiting for this
         if (ap_on) {
             mode = M_HOTSPOT;
-            drop_ap_us = esp_timer_get_time() + 5000000;   // let the phone's last page finish, then hotspot off
+            drop_ap_us = esp_timer_get_time() + A80_SETUP_RESULT_S * 1000000LL;   // keep the hotspot until the result is read
         } else {
             mode = M_HOME;
         }
     } else {
         weblog("Wi-Fi: couldn't join \"%s\" (%s); the previous setting is kept", ssid, why_not(last_reason));
+        join_why = why_not(last_reason);
+        join_state = JR_FAIL;   // the phone's page is waiting for this
         if (have_home) {
             sta_config(home_ssid, home_pass);   // back to the saved network (retried by the usual rules)
             esp_wifi_disconnect();
@@ -484,21 +497,49 @@ size_t wifi_save_request_html(const char *body, char *out, size_t cap)
     else if (ls > 32) err = "A Wi-Fi name can be at most 32 characters.";
     else if (lw > 63 || (lw > 0 && lw < 8)) err = "A Wi-Fi password is 8 to 63 characters.";
 
-    page_head(&b, err ? "Home Wi-Fi" : "Joining the network");
+    if (!err && join_state == JR_PENDING) err = "Another change is still being tried. Wait a few seconds and try again.";
     if (err) {
+        page_head(&b, "Home Wi-Fi");
         hp(&b, "<p>%s</p><p><a href=/wifi>Back</a></p></body></html>", err);
     } else {
         xSemaphoreTake(lock, portMAX_DELAY);
         strlcpy(pend_ssid, ssid, sizeof pend_ssid);
         strlcpy(pend_pass, lw > 0 ? pass : "", sizeof pend_pass);
+        join_state = JR_PENDING;
         pend_ready = true;   // the Wi-Fi task picks it up within a second
         xSemaphoreGive(lock);
         weblog("Wi-Fi: change to \"%s\" requested from the setup page", ssid);
-        hp(&b, "<p>The printer is now trying to join \u201c");
-        hesc(&b, ssid);
-        hp(&b, "\u201d.</p><p>If that works, the hotspot turns off (this page will lose its connection) and the "
-               "printer appears on that network. If it can't join (wrong password or out of range), nothing changes: "
-               "the old setting is kept and the hotspot stays.</p></body></html>");
+
+        // Answer with the outcome, while the hotspot is still on: wait for the Wi-Fi task (up to its join time).
+        for (int i = 0; i < (A80_HOME_JOIN_S + 5) * 10 && join_state == JR_PENDING; i++) vTaskDelay(pdMS_TO_TICKS(100));
+        jstate_t st = join_state;
+        if (st == JR_OK) {
+            page_head(&b, "Joined");
+            hp(&b, "<p>The printer joined \u201c");
+            hesc(&b, ssid);
+            hp(&b, "\u201d and saved it as the home network.</p><p>Its address there: <b>%s</b><br>"
+                   "<a href=\"http://%s:%d/\">http://%s:%d/</a> (open it from a device on \u201c", join_ip, join_ip,
+               A80_IPP_PORT, join_ip, A80_IPP_PORT);
+            hesc(&b, ssid);
+            if (ap_on) hp(&b, "\u201d).</p><p>The hotspot turns off in about %d seconds, so this page will lose its connection. "
+                              "Join \u201c", A80_SETUP_RESULT_S);
+            else hp(&b, "\u201d).</p><p>The printer has left its previous network, so this page will lose its connection. "
+                        "Join \u201c");
+            hesc(&b, ssid);
+            hp(&b, "\u201d on your phone to keep printing.</p></body></html>");
+        } else if (st == JR_FAIL) {
+            page_head(&b, "Couldn't join");
+            hp(&b, "<p>The printer couldn't join \u201c");
+            hesc(&b, ssid);
+            hp(&b, "\u201d: <b>%s</b>.</p><p>Nothing was changed; the hotspot is still on and the previous setting is kept.</p>"
+                   "<p><a href=/wifi>Try again</a></p></body></html>", join_why);
+        } else {
+            page_head(&b, "Still trying");
+            hp(&b, "<p>The printer is still trying to join \u201c");
+            hesc(&b, ssid);
+            hp(&b, "\u201d. <a href=/>Check the status page</a> in a moment.</p></body></html>");
+        }
+        if (st != JR_PENDING) join_state = JR_IDLE;
     }
     memset(pass, 0, sizeof pass);
     return b.n;
