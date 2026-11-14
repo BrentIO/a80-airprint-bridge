@@ -88,19 +88,33 @@ static void media_size(buf_t *b, const char *name, int w, int h)
     col_end(b);
 }
 // One media-col value. name="" for additional values of a 1setOf.
-// Standard PWG media-type keywords: iOS shows its own names for these ("Continuous paper - Short Edge", "Plain Paper")
+// Paper type values (A80_MEDIA_TYPE_NAMES in config.h picks what the printer advertises):
+//   0 standard PWG keywords: iOS shows its own names for these ("Continuous paper - Short Edge", "Plain Paper")
+//   1 free-text names: Apple's CUPS shows an unknown name as "Other Media", not as written
+//   2 our own keywords, named by the strings catalog (printer-strings-uri): the iPhone has no built-in name for them
 #define MT_ROLL_KW "stationery"
 #define MT_FANFOLD_KW "continuous-short"   // PWG: sheets joined along the short edge (fanfold)
-#if A80_MEDIA_TYPE_NAMES
-// IPP's media-type is "keyword | name": advertised as free-text names, iOS may show them as written
+#define MT_ROLL_CUSTOM "a80-paper-roll"
+#define MT_FANFOLD_CUSTOM "a80-continuous-perforated-letter"
+#if A80_MEDIA_TYPE_NAMES == 1
 #define MT_ROLL A80_PAPER_ROLL_NAME
 #define MT_FANFOLD A80_PAPER_FANFOLD_NAME
 #define MT_TAG T_NAME
+#elif A80_MEDIA_TYPE_NAMES == 2
+#define MT_ROLL MT_ROLL_CUSTOM
+#define MT_FANFOLD MT_FANFOLD_CUSTOM
+#define MT_TAG T_KEYWORD
 #else
 #define MT_ROLL MT_ROLL_KW
 #define MT_FANFOLD MT_FANFOLD_KW
 #define MT_TAG T_KEYWORD
 #endif
+
+// A job names the continuous paper with any spelling the iPhone may remember
+static bool is_fanfold_type(const char *t)
+{
+    return !strcmp(t, MT_FANFOLD_KW) || !strcmp(t, MT_FANFOLD_CUSTOM) || !strcmp(t, A80_PAPER_FANFOLD_NAME);
+}
 
 static void media_col(buf_t *b, const char *name, const char *key, int w, int h, int margin, const char *type)
 {
@@ -130,6 +144,8 @@ size_t ipp_strings_en(char *out, size_t cap)
     int n = snprintf(out, cap,
                      "/* Paper types shown on the iPhone */\n"
                      "\"media-type\" = \"Paper Type\";\n"
+                     "\"media-type." MT_FANFOLD_CUSTOM "\" = \"" A80_PAPER_FANFOLD_NAME "\";\n"
+                     "\"media-type." MT_ROLL_CUSTOM "\" = \"" A80_PAPER_ROLL_NAME "\";\n"
                      "\"media-type." MT_FANFOLD_KW "\" = \"" A80_PAPER_FANFOLD_NAME "\";\n"
                      "\"media-type." MT_ROLL_KW "\" = \"" A80_PAPER_ROLL_NAME "\";\n");
     return n < 0 ? 0 : (size_t)n < cap ? (size_t)n : cap - 1;
@@ -312,7 +328,8 @@ static void printer_attributes(buf_t *b)
     // Names for the two paper types (PWG 5100.13 message catalog); the iPhone fetches it from this printer
     char strings[56];
     snprintf(strings, sizeof strings, "http://%s:%d/strings/en.strings", addr, A80_IPP_PORT);
-    a_str(b, T_LANG, "printer-strings-languages-supported", "en");
+    static const char *const langs[] = {"en", "en-us"};   // the iPhone may ask for "en-US"; both get the same file
+    a_strs(b, T_LANG, "printer-strings-languages-supported", langs, 2);
     a_str(b, T_URI, "printer-strings-uri", strings);
     a_res(b, "printer-resolution-default", 300);
     a_res(b, "printer-resolution-supported", 300);
@@ -494,7 +511,7 @@ ipp_txn_t *ipp_begin(const uint8_t *hdr, size_t len)
         t->job = job_new(r->job_name);
         // a job that names a paper type gets it; one that doesn't prints as continuous perforated Letter
         // either spelling counts: the name we advertise, or the standard keyword (an iPhone may remember the old one)
-        t->job->fanfold = r->media_type[0] ? !strcmp(r->media_type, MT_FANFOLD) || !strcmp(r->media_type, MT_FANFOLD_KW) : true;
+        t->job->fanfold = r->media_type[0] ? is_fanfold_type(r->media_type) : true;
         t->job->darkness = r->quality == 5 ? 2 : -1;   // Best = darkest; Normal = automatic
         // iOS may show Draft even though only Normal and Best are advertised; Draft prints as Normal (user: too light)
         if (r->quality == 3) weblog("Job %d: Draft isn't offered by this printer; printing as Normal", t->job->id);

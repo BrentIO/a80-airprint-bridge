@@ -88,5 +88,9 @@ diagonal dot lines.
 
 Keys are `attribute.keyword`. **Tested on iOS (2026-11-14): the iPhone fetches this file, but ignores it for
 media-type names** in Media & Quality (it kept "Continuous Paper - Short Edge" and "Plain Paper"). The firmware
-therefore advertises the two types as free-text *names* instead (`media-type` is `keyword | name` in IPP); with
-`A80_MEDIA_TYPE_NAMES` set to 0 it goes back to the standard keywords. Jobs naming either spelling are accepted.
+therefore advertises the two types with **its own keywords** (`a80-continuous-perforated-letter`, `a80-paper-roll`),
+which the catalog names. Reason: Apple's open-source CUPS looks a value up in the printer's catalog first (key
+`media-type.<value>`), then in its built-in table, and shows an unknown free-text name as "Other Media", so free-text
+names are not an option; and iOS probably prefers its built-in names for the *standard* keywords. Whether iOS
+uses the catalog for keywords it doesn't know is checked on the phone. `A80_MEDIA_TYPE_NAMES` in `config.h`: 0 =
+standard keywords, 1 = free-text names, 2 = our keywords + catalog. Jobs naming any of these spellings are accepted.
