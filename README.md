@@ -15,8 +15,9 @@ It's a printer similar to [this one on Amazon](https://a.co/d/09d2KUnP).
 ## What works
 
 - The iPhone finds **A80 Thermal** on the ESP32's open hotspot and prints from any app.
-- **Paper:** roll, or continuous fanfold Letter (pages land on the perforations; choose "Continuous paper – Short
-  Edge" under Media & Quality; the printer remembers your choice for the next job).
+- **Paper:** **Continuous Perforated Letter** (fanfold; pages land on the perforations) is the default, and
+  **Paper Roll** is the other choice, both under Media & Quality. A job that doesn't name a paper type prints as
+  continuous perforated Letter.
 - **Quality:** Normal = automatic darkness (lighter for very dark pages, which print more cleanly), Best = darkest.
 - **Status on the iPhone:** a line under the printer's name ("Ready - battery 80%", "Off - press power button",
   "Out of paper"), the battery under Printer Info → Supply Levels, and a status page under "Show Printer Web Page".

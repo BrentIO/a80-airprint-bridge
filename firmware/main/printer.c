@@ -6,7 +6,7 @@
 // - keep-alive: status query every 60 s while idle
 // - fanfold mode: pad the page to A80_FANFOLD_ROWS and feed A80_TEAR_DOTS, so each page advances exactly one
 //   sheet; running out of paper at the end of a fanfold page is the stack ending, not a failed page
-// - the paper mode (roll / fanfold) follows the iPhone's Media & Quality choice and is remembered (NVS)
+// - paper: a job's media-type picks continuous perforated Letter (fanfold) or the roll; with none, fanfold
 #include "printer.h"
 #include "wifi.h"
 
@@ -773,7 +773,8 @@ static void print_task(void *arg)
             idle_monitor();
             continue;
         }
-        weblog("Printing job %d: %d page(s) on %s paper, quality %s", j.job_id, j.npages, j.fanfold ? "fanfold" : "roll",
+        weblog("Printing job %d: %d page(s) on %s, quality %s", j.job_id, j.npages,
+               j.fanfold ? A80_PAPER_FANFOLD_NAME : A80_PAPER_ROLL_NAME,
                j.darkness == 0 ? "Draft" : j.darkness == 2 ? "Best" : "Normal (automatic darkness)");
         if (j.fanfold && j.pages[0]->rows > A80_FANFOLD_ROWS)
             weblog("Job %d: the page is %.1f mm taller than a fanfold sheet's printable area; the bottom %.1f mm "
@@ -897,10 +898,7 @@ static void print_task(void *arg)
 
 void printer_start(void)
 {
-    ipp_fanfold_load();
-    ipp_settings_start();
-    weblog("Paper type: %s (follows the iPhone's choice under Media & Quality)",
-           ipp_fanfold_default() ? "fanfold (continuous Letter)" : "roll");
+    weblog("Paper: %s unless a job asks for %s", A80_PAPER_FANFOLD_NAME, A80_PAPER_ROLL_NAME);
     ev = xEventGroupCreate();
     replies = xQueueCreate(16, sizeof(reply_t));
     jobs_q = xQueueCreate(4, sizeof(pjob_t));
@@ -938,7 +936,7 @@ size_t printer_status_html(char *o, size_t cap)
         wifi_describe_html(w, sizeof w);
         P("<tr><td>Wi-Fi</td><td>%s<br><a href=/wifi>Change Wi-Fi</a></td></tr>", w);
     }
-    P("<tr><td>Paper</td><td>%s</td></tr>", ipp_fanfold_default() ? "Fanfold (continuous Letter)" : "Roll");
+    P("<tr><td>Default paper</td><td>%s</td></tr>", A80_PAPER_FANFOLD_NAME);
     int64_t up = esp_timer_get_time() / 1000000;
     P("<tr><td>Up for</td><td>%dh %02dm</td></tr>", (int)(up / 3600), (int)(up / 60 % 60));
     P("<tr><td>Firmware</td><td>%s</td></tr></table>", A80_BRIDGE_VERSION);

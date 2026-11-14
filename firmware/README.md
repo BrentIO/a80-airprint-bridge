@@ -94,7 +94,13 @@ hotspot fallback timing, Bonjour on the home network, and printing over it.
   2142 printed rows + 120-dot feed (config.h, step17), drift ≈ 0 over 3 pages; load by inserting (parks ~92 mm out), then
   open the cover and slide the perforation back to the tear bar. Last sheet of a stack can't feed out (paper sensor
   ~7 mm before the tear bar).
-- iOS: paper type is on the "Media & Quality" tab; "Continuous paper – Short Edge" = fanfold (`continuous-short`).
+- iOS: paper type is on the "Media & Quality" tab; `continuous-short` = fanfold = **Continuous Perforated Letter**
+  (the default, also for jobs that name no type) and `stationery` = **Paper Roll**. The two names come from a
+  PWG 5100.13 message catalog the printer serves at `/strings/en.strings`, but iOS fetches it and ignores it for
+  media types (tested 2026-11-14), so the types are advertised with our own keywords (`a80-continuous-perforated-letter`, `a80-paper-roll`) that the
+  catalog names (`A80_MEDIA_TYPE_NAMES` in `config.h`: 0 standard keywords, 1 free-text names, 2 our keywords).
+  Apple's CUPS looks a value up in the printer's catalog first and shows free text as "Other Media", which is why
+  option 2. Whether iOS uses the catalog for keywords it has no built-in name for is checked on the phone.
   Copies arrive as one multi-page job. iOS polls only page counts, so progress is per page (no % within a page).
 - Hotspot joins are slow-ish because there is no internet; DHCP now offers no router/DNS (step5).
 - No charging indicator exists (re-probed read-only via every GATT characteristic); charging is inferred from the

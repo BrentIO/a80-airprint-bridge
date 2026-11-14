@@ -75,3 +75,27 @@ diagonal dot lines.
   Small devices must **stream-convert** the document rather than buffer it (see firmware/main/urfconv.c).
 - iOS polls Get-Printer-Attributes and Get-Job-Attributes every ~1–3 s on separate keep-alive connections while uploading
   on another. The server must serve them concurrently.
+
+## Naming the paper types (`printer-strings-uri`)
+
+`printer-strings-uri` (with `printer-strings-languages-supported` = `en`, `en-us`) points to a `text/strings` message
+catalog (PWG 5100.13 section 9.1) served by the printer at `http://<host>:8631/strings/en.strings`. Keys are
+`attribute.keyword`. The firmware advertises the two paper types with **its own keywords** and names them there:
+
+```
+"media-type.a80-continuous-perforated-letter" = "Continuous Perforated Letter";
+"media-type.a80-paper-roll" = "Paper Roll";
+```
+
+**Confirmed on iOS and macOS (2026-11-14):** Media & Quality shows "Continuous Perforated Letter" and "Paper Roll".
+Findings that led here:
+
+- With the standard keywords (`continuous-short`, `stationery`) the iPhone fetched the catalog but kept its built-in
+  names ("Continuous Paper - Short Edge", "Plain Paper"); the Mac showed the same. Built-in names win for keywords
+  the OS knows.
+- Free-text (`name`) values are no option: Apple's open-source CUPS looks a value up in the printer's catalog first
+  (`media-type.<value>`), then in its built-in table, and shows an unknown name as "Other Media".
+- Keywords the OS doesn't know are named from the catalog, which is what the firmware now relies on.
+
+`A80_MEDIA_TYPE_NAMES` in `config.h`: 0 = standard keywords, 1 = free-text names, 2 = our keywords + catalog.
+Jobs naming any of these spellings are accepted.

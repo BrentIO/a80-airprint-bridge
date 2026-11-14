@@ -120,6 +120,13 @@ static void handle_conn(conn_t *c)
             else if (!strcasecmp(line, "Expect") && strcasestr(v, "100-continue")) expect = true;
             else if (!strcasecmp(line, "Connection") && strcasestr(v, "close")) close_after = true;
         }
+        if (!strcmp(method, "GET") && !strncmp(path, "/strings/", 9)) {   // names of the paper types for the iPhone
+            char cat[512];
+            weblog("iPhone fetched the paper-name catalog [%s, connection %d]", path, c->fd);
+            respond(c->fd, "text/strings; charset=utf-8", cat, ipp_strings_en(cat, sizeof cat));
+            if (close_after) break;
+            continue;
+        }
         if (!strcmp(method, "GET")) {
             // /wifi: the home Wi-Fi setup page; anything else: the status page (iOS "Printer Website")
             bool setup = !strncmp(path, "/wifi", 5);

@@ -9,9 +9,6 @@
 #include <string.h>
 #include "esp_heap_caps.h"
 #include "esp_timer.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "nvs.h"
 #include "config.h"
 #include "weblog.h"
 #include "urfconv.h"
@@ -91,6 +88,34 @@ static void media_size(buf_t *b, const char *name, int w, int h)
     col_end(b);
 }
 // One media-col value. name="" for additional values of a 1setOf.
+// Paper type values (A80_MEDIA_TYPE_NAMES in config.h picks what the printer advertises):
+//   0 standard PWG keywords: iOS shows its own names for these ("Continuous paper - Short Edge", "Plain Paper")
+//   1 free-text names: Apple's CUPS shows an unknown name as "Other Media", not as written
+//   2 our own keywords, named by the strings catalog (printer-strings-uri): the iPhone has no built-in name for them
+#define MT_ROLL_KW "stationery"
+#define MT_FANFOLD_KW "continuous-short"   // PWG: sheets joined along the short edge (fanfold)
+#define MT_ROLL_CUSTOM "a80-paper-roll"
+#define MT_FANFOLD_CUSTOM "a80-continuous-perforated-letter"
+#if A80_MEDIA_TYPE_NAMES == 1
+#define MT_ROLL A80_PAPER_ROLL_NAME
+#define MT_FANFOLD A80_PAPER_FANFOLD_NAME
+#define MT_TAG T_NAME
+#elif A80_MEDIA_TYPE_NAMES == 2
+#define MT_ROLL MT_ROLL_CUSTOM
+#define MT_FANFOLD MT_FANFOLD_CUSTOM
+#define MT_TAG T_KEYWORD
+#else
+#define MT_ROLL MT_ROLL_KW
+#define MT_FANFOLD MT_FANFOLD_KW
+#define MT_TAG T_KEYWORD
+#endif
+
+// A job names the continuous paper with any spelling the iPhone may remember
+static bool is_fanfold_type(const char *t)
+{
+    return !strcmp(t, MT_FANFOLD_KW) || !strcmp(t, MT_FANFOLD_CUSTOM) || !strcmp(t, A80_PAPER_FANFOLD_NAME);
+}
+
 static void media_col(buf_t *b, const char *name, const char *key, int w, int h, int margin, const char *type)
 {
     col_begin(b, name);
@@ -102,7 +127,8 @@ static void media_col(buf_t *b, const char *name, const char *key, int w, int h,
     m_int(b, "media-left-margin", margin);
     m_int(b, "media-right-margin", margin);
     m_kw(b, "media-source", "main");
-    m_kw(b, "media-type", type);
+    member(b, "media-type");
+    a_str(b, MT_TAG, "", type);
     col_end(b);
 }
 
@@ -110,9 +136,20 @@ static void media_col(buf_t *b, const char *name, const char *key, int w, int h,
 #define MARGIN 500   // 5 mm default margins so iOS fits photos; 0-margin variants offered too
 #define LETTER "na_letter_8.5x11in", 21590, 27940
 #define A4 "iso_a4_210x297mm", 21000, 29700
-#define MT_ROLL "stationery"
-#define MT_FANFOLD "continuous-short"   // PWG: sheets joined along the short edge (fanfold)
 #define PRINTER_URI "ipp://" A80_HOSTNAME ".local:8631/ipp/print"
+
+// text/strings catalog (PWG 5100.13 section 9.1): `"attribute.keyword" = "text";` per line
+size_t ipp_strings_en(char *out, size_t cap)
+{
+    int n = snprintf(out, cap,
+                     "/* Paper types shown on the iPhone */\n"
+                     "\"media-type\" = \"Paper Type\";\n"
+                     "\"media-type." MT_FANFOLD_CUSTOM "\" = \"" A80_PAPER_FANFOLD_NAME "\";\n"
+                     "\"media-type." MT_ROLL_CUSTOM "\" = \"" A80_PAPER_ROLL_NAME "\";\n"
+                     "\"media-type." MT_FANFOLD_KW "\" = \"" A80_PAPER_FANFOLD_NAME "\";\n"
+                     "\"media-type." MT_ROLL_KW "\" = \"" A80_PAPER_ROLL_NAME "\";\n");
+    return n < 0 ? 0 : (size_t)n < cap ? (size_t)n : cap - 1;
+}
 
 static int p_state = 3;
 static char p_reason[32] = "connecting-to-device", p_message[96] = "Printer is off - press its power button";
@@ -141,49 +178,6 @@ void ipp_set_printer_state(int state, const char *reason, const char *message)
     p_state = state;
     snprintf(p_reason, sizeof p_reason, "%s", reason);
     snprintf(p_message, sizeof p_message, "%s", message);
-}
-
-// NVS (flash) may only be touched from tasks with internal-RAM stacks (the HTTP workers use PSRAM stacks),
-// so loading happens in printer_start (main task) and saving in settings_task below.
-static volatile bool fanfold_dflt, fanfold_dirty;
-
-void ipp_fanfold_load(void)
-{
-    nvs_handle_t h;
-    uint8_t v = 0;
-    if (nvs_open("a80", NVS_READONLY, &h) == ESP_OK) { nvs_get_u8(h, "fanfold", &v); nvs_close(h); }
-    fanfold_dflt = v;
-}
-
-void ipp_fanfold_save(void)
-{
-    if (!fanfold_dirty) return;
-    fanfold_dirty = false;
-    nvs_handle_t h;
-    if (nvs_open("a80", NVS_READWRITE, &h) == ESP_OK) { nvs_set_u8(h, "fanfold", fanfold_dflt); nvs_commit(h); nvs_close(h); }
-}
-
-static void settings_task(void *arg)   // internal stack: the only place the paper default is written to flash
-{
-    for (;;) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-        ipp_fanfold_save();
-    }
-}
-
-void ipp_settings_start(void)
-{
-    xTaskCreate(settings_task, "settings", 3072, NULL, 3, NULL);
-}
-
-bool ipp_fanfold_default(void) { return fanfold_dflt; }
-
-void ipp_set_fanfold_default(bool fanfold)
-{
-    if (fanfold_dflt == fanfold) return;
-    fanfold_dflt = fanfold;
-    fanfold_dirty = true;
-    weblog("Paper type is now %s (the iPhone's choice, kept for jobs that don't say)", fanfold ? "fanfold (continuous Letter)" : "roll");
 }
 
 typedef struct {
@@ -248,7 +242,7 @@ static void printer_attributes(buf_t *b)
     static const char *const kw_scal[] = {"auto", "auto-fit", "fill", "fit", "none"};
     static const char *const kw_urf[] = {"CP1", "IS1", "MT1", "RS300", "V1.4", "W8"};
     static const char *const kw_which[] = {"completed", "not-completed"};
-    static const char *const kw_types[] = {MT_ROLL, MT_FANFOLD};
+    static const char *const kw_types[] = {MT_FANFOLD, MT_ROLL};
     static const int ops[] = {0x02, 0x04, 0x05, 0x06, 0x08, 0x09, 0x0A, 0x0B, 0x39, 0x3B, 0x3C};
     static const int margins[] = {0, MARGIN};
     static const int quals[] = {4, 5};   // iPhone Quality Normal (automatic) / Best (02); Draft dropped: too light
@@ -274,15 +268,15 @@ static void printer_attributes(buf_t *b)
     a_ints(b, T_INTEGER, "media-left-margin-supported", margins, 2);
     a_ints(b, T_INTEGER, "media-right-margin-supported", margins, 2);
     a_ints(b, T_INTEGER, "media-top-margin-supported", margins, 2);
-    bool ff = ipp_fanfold_default();
-    media_col(b, "media-col-database", LETTER, MARGIN, MT_ROLL);
+    // Continuous perforated Letter first and the default; the roll is the other choice
+    media_col(b, "media-col-database", LETTER, MARGIN, MT_FANFOLD);   // fanfold: Letter only (sheet pitch is calibrated for it)
+    media_col(b, "", LETTER, 0, MT_FANFOLD);
+    media_col(b, "", LETTER, MARGIN, MT_ROLL);
     media_col(b, "", A4, MARGIN, MT_ROLL);
     media_col(b, "", LETTER, 0, MT_ROLL);
     media_col(b, "", A4, 0, MT_ROLL);
-    media_col(b, "", LETTER, MARGIN, MT_FANFOLD);   // fanfold: Letter only (sheet pitch is calibrated for it)
-    media_col(b, "", LETTER, 0, MT_FANFOLD);
-    media_col(b, "media-col-default", LETTER, MARGIN, ff ? MT_FANFOLD : MT_ROLL);
-    media_col(b, "media-col-ready", LETTER, MARGIN, ff ? MT_FANFOLD : MT_ROLL);
+    media_col(b, "media-col-default", LETTER, MARGIN, MT_FANFOLD);
+    media_col(b, "media-col-ready", LETTER, MARGIN, MT_FANFOLD);
     a_strs(b, T_KEYWORD, "media-col-supported", kw_mcs, 8);
     a_str(b, T_KEYWORD, "media-default", "na_letter_8.5x11in");
     a_str(b, T_KEYWORD, "media-ready", "na_letter_8.5x11in");
@@ -290,7 +284,7 @@ static void printer_attributes(buf_t *b)
     media_size(b, "", 21000, 29700);
     a_str(b, T_KEYWORD, "media-source-supported", "main");
     a_strs(b, T_KEYWORD, "media-supported", kw_media, 2);
-    a_strs(b, T_KEYWORD, "media-type-supported", kw_types, 2);
+    a_strs(b, MT_TAG, "media-type-supported", kw_types, 2);
     a_str(b, T_KEYWORD, "multiple-document-handling-supported", "separate-documents-uncollated-copies");
     a_bool(b, "multiple-document-jobs-supported", false);
     a_int(b, T_INTEGER, "multiple-operation-time-out", 60);
@@ -331,6 +325,12 @@ static void printer_attributes(buf_t *b)
     wifi_address(addr, sizeof addr);
     snprintf(more, sizeof more, "http://%s:%d/", addr, A80_IPP_PORT);
     a_str(b, T_URI, "printer-more-info", more);
+    // Names for the two paper types (PWG 5100.13 message catalog); the iPhone fetches it from this printer
+    char strings[56];
+    snprintf(strings, sizeof strings, "http://%s:%d/strings/en.strings", addr, A80_IPP_PORT);
+    static const char *const langs[] = {"en", "en-us"};   // the iPhone may ask for "en-US"; both get the same file
+    a_strs(b, T_LANG, "printer-strings-languages-supported", langs, 2);
+    a_str(b, T_URI, "printer-strings-uri", strings);
     a_res(b, "printer-resolution-default", 300);
     a_res(b, "printer-resolution-supported", 300);
     a_int(b, T_ENUM, "printer-state", p_state);
@@ -422,7 +422,7 @@ static int parse(const uint8_t *d, size_t n, req_t *r)
             want_mt = vl == 10 && !memcmp(v, "media-type", 10);
             continue;
         }
-        if (depth && want_mt && t == T_KEYWORD) {
+        if (depth && want_mt && (t == T_KEYWORD || t == T_NAME || t == T_TEXT)) {
             snprintf(r->media_type, sizeof r->media_type, "%.*s", vl, (const char *)v);
             want_mt = false;
         }
@@ -509,13 +509,14 @@ ipp_txn_t *ipp_begin(const uint8_t *hdr, size_t len)
     case 0x02:   // Print-Job
     case 0x05:   // Create-Job
         t->job = job_new(r->job_name);
-        if (r->media_type[0]) ipp_set_fanfold_default(!strcmp(r->media_type, MT_FANFOLD));   // remember the choice
-        t->job->fanfold = ipp_fanfold_default();
+        // a job that names a paper type gets it; one that doesn't prints as continuous perforated Letter
+        // either spelling counts: the name we advertise, or the standard keyword (an iPhone may remember the old one)
+        t->job->fanfold = r->media_type[0] ? is_fanfold_type(r->media_type) : true;
         t->job->darkness = r->quality == 5 ? 2 : -1;   // Best = darkest; Normal = automatic
         // iOS may show Draft even though only Normal and Best are advertised; Draft prints as Normal (user: too light)
         if (r->quality == 3) weblog("Job %d: Draft isn't offered by this printer; printing as Normal", t->job->id);
-        weblog("Job %d \"%s\": %s paper, quality %s [media-type '%s']", t->job->id, t->job->name,
-               t->job->fanfold ? "fanfold" : "roll",
+        weblog("Job %d \"%s\": %s, quality %s [media-type '%s']", t->job->id, t->job->name,
+               t->job->fanfold ? A80_PAPER_FANFOLD_NAME : A80_PAPER_ROLL_NAME,
                t->job->darkness == 0 ? "Draft" : t->job->darkness == 2 ? "Best" : "Normal (automatic darkness)", r->media_type);
         if (r->op == 0x02) t->conv = urfconv_new(A80_HEAD_DOTS);
         break;
