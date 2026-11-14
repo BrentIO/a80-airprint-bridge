@@ -70,6 +70,9 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Test form parsing
+        run: gcc -Wall -Wextra -Werror -o /tmp/form_test test/form_host_test.c && /tmp/form_test
+
       - name: Build
         run: |
           . "$IDF_PATH/export.sh" >/dev/null

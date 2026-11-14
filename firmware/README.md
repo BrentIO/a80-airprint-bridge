@@ -37,6 +37,17 @@ Step history (each image = previous + the change):
 | 27 | Printer off = not an error: iOS sees printer-state-reasons `connecting-to-device` and "Printer is off - press its power button" (also before a job is sent, and at boot); a waiting job is pending (`job-queued`), not stopped; logged once; prints when the printer comes on; cancelled after 30 min (`A80_WAIT_PRINTER_MIN`). Before: iOS flashed an error dialog ~10 s after the upload |
 | 26 | IPP upload timeout 120 s while a body arrives (iOS pauses uploads while the printer shows stopped; job 2 was cut off at exactly 10 s); no log line for a query when the printer isn't connected |
 
+## Home Wi-Fi (issue #4)
+
+`main/wifi.c` owns Wi-Fi. Modes: `M_HOME` (station only), `M_LOST` (home dropped, reconnecting for 20 s) and
+`M_HOTSPOT` (hotspot up, home retried every 45 s while no phone is on it). The settings are in `config.h`
+(`A80_HOME_*`). The saved network lives in NVS namespace `wifi` (keys `ssid`, `pass`), read in the main task and
+written by the Wi-Fi task (internal stack; PSRAM-stack tasks must not touch NVS). A new network is saved only after a
+successful join. The setup page is `GET/POST /wifi` (served by `httpd.c`): the POST stages the choice (or `forget=1`)
+and the Wi-Fi task acts on it within a second. The form is parsed by `formparse.h`, which has a host test
+(`test/form_host_test.c`, run by CI). No button is involved. Not yet verified on hardware: joining a real network,
+hotspot fallback timing, Bonjour on the home network, and printing over it.
+
 ## Roadmap
 
 - Verify fanfold page step `A80_FANFOLD_FIX` = 27 over longer runs (the perforation should stay at the tear bar).

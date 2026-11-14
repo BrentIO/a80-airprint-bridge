@@ -15,6 +15,7 @@
 #include "config.h"
 #include "ipp.h"
 #include "printer.h"
+#include "wifi.h"
 #include "weblog.h"
 
 
@@ -120,10 +121,13 @@ static void handle_conn(conn_t *c)
             else if (!strcasecmp(line, "Connection") && strcasestr(v, "close")) close_after = true;
         }
         if (!strcmp(method, "GET")) {
-            // Status page (iOS "Printer Website", printer-more-info)
-            char *page = heap_caps_malloc(8192, MALLOC_CAP_SPIRAM);
+            // /wifi: the home Wi-Fi setup page; anything else: the status page (iOS "Printer Website")
+            bool setup = !strncmp(path, "/wifi", 5);
+            size_t cap = setup ? 16384 : 8192;
+            char *page = heap_caps_malloc(cap, MALLOC_CAP_SPIRAM);
             if (page) {
-                respond(c->fd, "text/html; charset=utf-8", page, printer_status_html(page, 8192));
+                respond(c->fd, "text/html; charset=utf-8", page,
+                        setup ? wifi_setup_html(page, cap) : printer_status_html(page, cap));
                 free(page);
             }
             if (close_after) break;
@@ -135,6 +139,22 @@ static void handle_conn(conn_t *c)
         struct timeval tv_body = {.tv_sec = 120};
         setsockopt(c->fd, SOL_SOCKET, SO_RCVTIMEO, &tv_body, sizeof tv_body);
         if (expect) send_all(c->fd, "HTTP/1.1 100 Continue\r\n\r\n", 25);
+
+        if (!strncmp(path, "/wifi", 5)) {   // the setup form (a few hundred bytes)
+            char form[600];
+            size_t n = 0;
+            body_t fb = {.chunked = chunked, .left = clen > 0 ? clen : 0};
+            for (int k; n < sizeof form - 1 && (k = body_read(c, &fb, (uint8_t *)form + n, sizeof form - 1 - n)) > 0;) n += k;
+            form[n] = 0;
+            char *page = heap_caps_malloc(16384, MALLOC_CAP_SPIRAM);
+            if (page) {
+                respond(c->fd, "text/html; charset=utf-8", page, wifi_save_request_html(form, page, 16384));
+                free(page);
+            }
+            setsockopt(c->fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+            if (close_after || !fb.done) break;   // an oversized body leaves bytes unread: drop the connection
+            continue;
+        }
 
         // Stream the body: read the IPP header, then feed the document straight into the converter.
         body_t br = {.chunked = chunked, .left = clen > 0 ? clen : 0};

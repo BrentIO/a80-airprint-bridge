@@ -12,43 +12,7 @@
 
 void httpd_start(void);
 #include "printer.h"
-
-static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
-{
-    if (base == IP_EVENT && id == IP_EVENT_AP_STAIPASSIGNED) {
-        ip_event_ap_staipassigned_t *e = data;
-        weblog("Wi-Fi: gave the phone address " IPSTR, IP2STR(&e->ip));
-    } else if (id == WIFI_EVENT_AP_STACONNECTED) {
-        wifi_event_ap_staconnected_t *e = data;
-        weblog("Wi-Fi: a phone joined the hotspot [MAC %02x:%02x:%02x:%02x:%02x:%02x]", e->mac[0], e->mac[1], e->mac[2],
-               e->mac[3], e->mac[4], e->mac[5]);
-    } else if (id == WIFI_EVENT_AP_STADISCONNECTED) {
-        weblog("Wi-Fi: a phone left the hotspot");
-    }
-}
-
-static void start_ap(void)
-{
-    esp_netif_t *ap_if = esp_netif_create_default_wifi_ap();   // 192.168.4.1/24 with DHCP server
-    // Local-only network: offer no router and no DNS, so iOS doesn't wait on its internet/captive-portal
-    // probe (it fails at once) and keeps using cellular for the internet.
-    esp_netif_dhcps_stop(ap_if);
-    uint8_t off = 0;
-    esp_netif_dhcps_option(ap_if, ESP_NETIF_OP_SET, ESP_NETIF_ROUTER_SOLICITATION_ADDRESS, &off, sizeof off);
-    esp_netif_dhcps_option(ap_if, ESP_NETIF_OP_SET, ESP_NETIF_DOMAIN_NAME_SERVER, &off, sizeof off);
-    esp_netif_dhcps_start(ap_if);
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_AP_STAIPASSIGNED, wifi_event, NULL));
-    wifi_config_t ap = {.ap = {.ssid = A80_AP_SSID, .ssid_len = strlen(A80_AP_SSID),
-                               .channel = A80_AP_CHANNEL, .max_connection = A80_AP_MAX_CONN,
-                               .authmode = WIFI_AUTH_OPEN}};
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &ap));
-    ESP_ERROR_CHECK(esp_wifi_start());
-    weblog("Wi-Fi hotspot \"%s\" is on (no password) [address %s]", A80_AP_SSID, A80_AP_IP);
-}
+#include "wifi.h"
 
 static void start_mdns(void)
 {
@@ -60,7 +24,7 @@ static void start_mdns(void)
         {"product", "(A80)"}, {"note", "Off - press power button"}, {"pdl", "image/urf"}, {"Color", "F"},
         {"Duplex", "F"}, {"Copies", "F"}, {"UUID", A80_UUID}, {"URF", "CP1,IS1,MT1,RS300,V1.4,W8"},
         {"kind", "document,roll"}, {"PaperMax", "legal-A4"}, {"priority", "0"},
-        {"adminurl", "http://" A80_AP_IP "/"},
+        {"adminurl", "http://" A80_HOSTNAME ".local:" A80_IPP_PORT_STR "/"},
     };
     ESP_ERROR_CHECK(mdns_service_add(A80_PRINTER_NAME, "_ipp", "_tcp", A80_IPP_PORT, txt,
                                      sizeof txt / sizeof *txt));
@@ -90,7 +54,7 @@ void app_main(void)
     esp_log_level_set("BLE_INIT", ESP_LOG_WARN);
     weblog("A80 AirPrint bridge starting [firmware version %s, commit %s, %u KB PSRAM free]", A80_VERSION, A80_COMMIT,
            (unsigned)(heap_caps_get_free_size(MALLOC_CAP_SPIRAM) / 1024));
-    start_ap();
+    wifi_start();
     start_mdns();
     httpd_start();
     printer_start();
