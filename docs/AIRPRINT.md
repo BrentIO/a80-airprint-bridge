@@ -78,19 +78,24 @@ diagonal dot lines.
 
 ## Naming the paper types (`printer-strings-uri`)
 
-`printer-strings-uri` (with `printer-strings-languages-supported` = `en`) points to a `text/strings` message catalog
-(PWG 5100.13 section 9.1) served by the printer at `http://<host>:8631/strings/en.strings`. It names the two media types:
+`printer-strings-uri` (with `printer-strings-languages-supported` = `en`, `en-us`) points to a `text/strings` message
+catalog (PWG 5100.13 section 9.1) served by the printer at `http://<host>:8631/strings/en.strings`. Keys are
+`attribute.keyword`. The firmware advertises the two paper types with **its own keywords** and names them there:
 
 ```
-"media-type.continuous-short" = "Continuous Perforated Letter";
-"media-type.stationery" = "Paper Roll";
+"media-type.a80-continuous-perforated-letter" = "Continuous Perforated Letter";
+"media-type.a80-paper-roll" = "Paper Roll";
 ```
 
-Keys are `attribute.keyword`. **Tested on iOS (2026-11-14): the iPhone fetches this file, but ignores it for
-media-type names** in Media & Quality (it kept "Continuous Paper - Short Edge" and "Plain Paper"). The firmware
-therefore advertises the two types with **its own keywords** (`a80-continuous-perforated-letter`, `a80-paper-roll`),
-which the catalog names. Reason: Apple's open-source CUPS looks a value up in the printer's catalog first (key
-`media-type.<value>`), then in its built-in table, and shows an unknown free-text name as "Other Media", so free-text
-names are not an option; and iOS probably prefers its built-in names for the *standard* keywords. Whether iOS
-uses the catalog for keywords it doesn't know is checked on the phone. `A80_MEDIA_TYPE_NAMES` in `config.h`: 0 =
-standard keywords, 1 = free-text names, 2 = our keywords + catalog. Jobs naming any of these spellings are accepted.
+**Confirmed on iOS and macOS (2026-11-14):** Media & Quality shows "Continuous Perforated Letter" and "Paper Roll".
+Findings that led here:
+
+- With the standard keywords (`continuous-short`, `stationery`) the iPhone fetched the catalog but kept its built-in
+  names ("Continuous Paper - Short Edge", "Plain Paper"); the Mac showed the same. Built-in names win for keywords
+  the OS knows.
+- Free-text (`name`) values are no option: Apple's open-source CUPS looks a value up in the printer's catalog first
+  (`media-type.<value>`), then in its built-in table, and shows an unknown name as "Other Media".
+- Keywords the OS doesn't know are named from the catalog, which is what the firmware now relies on.
+
+`A80_MEDIA_TYPE_NAMES` in `config.h`: 0 = standard keywords, 1 = free-text names, 2 = our keywords + catalog.
+Jobs naming any of these spellings are accepted.
