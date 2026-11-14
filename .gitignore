@@ -1,0 +1,20 @@
+# ESP-IDF build output and generated config
+firmware/build/
+firmware/managed_components/
+firmware/sdkconfig
+firmware/sdkconfig.old
+*.bin
+*.elf
+*.map
+
+# Logs and captured print jobs (personal documents)
+*.log
+*.urf
+*.pbm
+
+# Vendor driver packages: not ours to redistribute
+*.pkg
+*.run
+
+# macOS
+.DS_Store
