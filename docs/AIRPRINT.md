@@ -99,3 +99,10 @@ Findings that led here:
 
 `A80_MEDIA_TYPE_NAMES` in `config.h`: 0 = standard keywords, 1 = free-text names, 2 = our keywords + catalog.
 Jobs naming any of these spellings are accepted.
+
+## Web pages on port 80
+
+Printing (IPP) stays on port 8631, the port Bonjour advertises. The status page, `/wifi` and the paper-name catalog are
+also served on port 80, so `http://192.168.4.1/` and `http://a80printer.local/` work in a browser. Both ports share one
+pool of connection handlers; port 80 refuses everything except `GET` and the `/wifi` form (anything else gets 404).
+`printer-more-info` ("Show Printer Web Page") and the Bonjour `adminurl` use the port-less address.
