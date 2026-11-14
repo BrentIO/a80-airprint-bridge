@@ -154,7 +154,7 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
     if (base == IP_EVENT && id == IP_EVENT_AP_STAIPASSIGNED) {
         ip_event_ap_staipassigned_t *e = data;
-        weblog("Wi-Fi: gave the phone address " IPSTR, IP2STR(&e->ip));
+        weblog("Wi-Fi: gave the client address " IPSTR, IP2STR(&e->ip));
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         sta_ip = true;
         xEventGroupSetBits(wev, GOT_IP);
@@ -175,10 +175,10 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         }
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_AP_STACONNECTED) {
         wifi_event_ap_staconnected_t *e = data;
-        weblog("Wi-Fi: a phone joined the hotspot [MAC %02x:%02x:%02x:%02x:%02x:%02x]", e->mac[0], e->mac[1], e->mac[2],
+        weblog("Wi-Fi: a client joined the hotspot [MAC %02x:%02x:%02x:%02x:%02x:%02x]", e->mac[0], e->mac[1], e->mac[2],
                e->mac[3], e->mac[4], e->mac[5]);
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_AP_STADISCONNECTED) {
-        weblog("Wi-Fi: a phone left the hotspot");
+        weblog("Wi-Fi: a client left the hotspot");
     }
 }
 
@@ -544,7 +544,7 @@ size_t wifi_save_request_html(const char *body, char *out, size_t cap)
             else hp(&b, "\u201d).</p><p>The printer has left its previous network, so this page will lose its connection. "
                         "Join \u201c");
             hesc(&b, ssid);
-            hp(&b, "\u201d on your phone to keep printing.</p></body></html>");
+            hp(&b, "\u201d on your device to keep printing.</p></body></html>");
         } else if (st == JR_FAIL) {
             page_head(&b, "Couldn't join");
             hp(&b, "<p>The printer couldn't join \u201c");

@@ -104,7 +104,7 @@ network, changes the network later. No button on the ESP32 is involved.
 **How it behaves:**
 - At boot it tries the saved network for about 12 seconds, then starts the hotspot.
 - If the home Wi-Fi drops, it reconnects for 20 seconds, then starts the hotspot and keeps looking for home every
-  45 seconds, but only while no phone is on the hotspot (looking scans other channels, which interrupts a transfer).
+  45 seconds, but only while no device is on the hotspot (looking scans other channels, which interrupts a transfer).
 - **Forget the saved network:** the **Forget the saved network** button on the same page. The printer goes back to
   hotspot only.
 - Nothing is required: with no home network saved it behaves as before.
