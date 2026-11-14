@@ -8,6 +8,17 @@ on:
     branches:
       - main
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Release version (YYYY.MM.NN); empty for a development build (9999.99.99)'
+        type: string
+        required: false
+        default: ''
+    outputs:
+      artifact:
+        description: 'Name of the uploaded firmware artifact'
+        value: ${{ jobs.build.outputs.artifact }}
 
 concurrency:
   group: build-firmware-${{ github.event.pull_request.number || github.ref }}
@@ -21,6 +32,8 @@ env:
   CCACHE_MAXSIZE: 100M
   # Stamped into the firmware (printed on the serial console at boot); the PR head, not the merge commit
   A80_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+  # Release version from the release workflow; empty means a development build (9999.99.99)
+  A80_VERSION: ${{ inputs.version }}
 
 jobs:
   build:
@@ -32,6 +45,9 @@ jobs:
 
     permissions:
       contents: read
+
+    outputs:
+      artifact: ${{ steps.name.outputs.artifact }}
 
     defaults:
       run:
@@ -75,13 +91,19 @@ jobs:
       - name: Create flashable image
         run: |
           . "$IDF_PATH/export.sh" >/dev/null
-          idf.py merge-bin -o "a80-airprint-${GITHUB_SHA::7}.bin"
+          # a release is named by its version, a development build by its commit
+          idf.py merge-bin -o "a80-airprint-${A80_VERSION:-${A80_COMMIT::7}}.bin"
           ls -l build/a80-airprint-*.bin
+
+      - name: Name the artifact
+        id: name
+        shell: bash
+        run: echo "artifact=a80-airprint-${A80_VERSION:-${A80_COMMIT::7}}" >> "$GITHUB_OUTPUT"
 
       - name: Upload firmware image
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: a80-airprint-${{ github.sha }}
+          name: ${{ steps.name.outputs.artifact }}
           # One image, flash at address 0x0 (README.md)
           path: firmware/build/a80-airprint-*.bin
           if-no-files-found: error

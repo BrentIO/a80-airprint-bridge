@@ -64,6 +64,15 @@ The first line says which firmware is running, for example `firmware version 999
 (development builds use the placeholder version `9999.99.99`; releases carry their `YYYY.MM.NN` version). The
 same appears on the status page under "Show Printer Web Page".
 
+## Releases
+
+Releases are named `YYYY.MM.NN` (for example `2026.11.01`) and listed under **Releases**. Each one has the merged
+firmware image attached (`a80-airprint-<version>.bin`): flash it at **0x0**, no build needed.
+
+To make a release (maintainers): **Actions → 🚀 Release → Run workflow** on `main`, and enter the version. It checks
+the version format and that the tag doesn't exist yet, runs the same build every pull request must pass (stamped with
+the version, which the firmware prints at boot), then creates the tag and the GitHub Release with generated notes.
+
 ## Repository
 
 | Path | What |
