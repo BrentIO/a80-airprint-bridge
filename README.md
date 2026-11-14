@@ -72,6 +72,11 @@ date, ESP-IDF version, chip, MAC addresses, free internal RAM and PSRAM, flash a
 uptime, Wi-Fi state), directly above the printer's own block. The status page has the same list under "ESP32". It
 includes the MAC addresses, so mask them before pasting a log or page into an issue.
 
+**After updating from an older firmware:** earlier builds printed on port 8631; this one uses port 80. A phone or
+Mac that already knew the printer can keep the old address and fail with "The printer is no longer available" or a
+preview that won't load. Cancel the stuck jobs and **restart the iPhone** (on a Mac, remove the printer and add it
+again; this also refreshes the paper-type names).
+
 ## Home Wi-Fi (optional)
 
 At home the printer can join your own Wi-Fi, so the iPhone prints without switching networks. Away from home (in the
