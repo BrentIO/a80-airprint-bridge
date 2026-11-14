@@ -518,8 +518,8 @@ size_t wifi_save_request_html(const char *body, char *out, size_t cap)
             hp(&b, "<p>The printer joined \u201c");
             hesc(&b, ssid);
             hp(&b, "\u201d and saved it as the home network.</p><p>Its address there: <b>%s</b><br>"
-                   "<a href=\"http://%s:%d/\">http://%s:%d/</a> (open it from a device on \u201c", join_ip, join_ip,
-               A80_IPP_PORT, join_ip, A80_IPP_PORT);
+                   "<a href=\"http://%s/\">http://%s/</a> (open it from a device on \u201c", join_ip, join_ip,
+               join_ip);
             hesc(&b, ssid);
             if (ap_on) hp(&b, "\u201d).</p><p>The hotspot turns off in about %d seconds, so this page will lose its connection. "
                               "Join \u201c", A80_SETUP_RESULT_S);

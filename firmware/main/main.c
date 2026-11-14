@@ -24,7 +24,7 @@ static void start_mdns(void)
         {"product", "(A80)"}, {"note", "Off - press power button"}, {"pdl", "image/urf"}, {"Color", "F"},
         {"Duplex", "F"}, {"Copies", "F"}, {"UUID", A80_UUID}, {"URF", "CP1,IS1,MT1,RS300,V1.4,W8"},
         {"kind", "document,roll"}, {"PaperMax", "legal-A4"}, {"priority", "0"},
-        {"adminurl", "http://" A80_HOSTNAME ".local:" A80_IPP_PORT_STR "/"},
+        {"adminurl", "http://" A80_HOSTNAME ".local/"},
     };
     ESP_ERROR_CHECK(mdns_service_add(A80_PRINTER_NAME, "_ipp", "_tcp", A80_IPP_PORT, txt,
                                      sizeof txt / sizeof *txt));

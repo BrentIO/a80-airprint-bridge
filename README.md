@@ -71,7 +71,7 @@ same appears on the status page under "Show Printer Web Page".
 At home the printer can join your own Wi-Fi, so the iPhone prints without switching networks. Away from home (in the
 car, say) it falls back to its own **A80-Print** hotspot.
 
-**Set it up:** join the hotspot, open **Show Printer Web Page** (or `http://192.168.4.1:8631/wifi`), pick your
+**Set it up:** join the hotspot, open **Show Printer Web Page** (or `http://192.168.4.1/wifi`), pick your
 network from the list (strongest signal first), enter the password and tap **Save**. The printer then tries the
 network, and **only if it really joins is it saved**. The page that comes back shows the printer's **new address**
 on your network (or **why it couldn't join**), and the hotspot stays on for 5 seconds, then turns off, which also moves your phone back to your home Wi-Fi by

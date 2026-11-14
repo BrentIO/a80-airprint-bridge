@@ -219,7 +219,7 @@ static void server_task(void *arg)
                             .sin_addr.s_addr = htonl(INADDR_ANY)};
     bind(ls, (struct sockaddr *)&a, sizeof a);
     listen(ls, 8);
-    weblog("Print server ready for the iPhone [IPP on port %d]", (int)(intptr_t)arg);
+    weblog("Print server and web pages ready [port %d]", (int)(intptr_t)arg);
     for (;;) {
         struct sockaddr_in peer;
         socklen_t pl = sizeof peer;
@@ -242,5 +242,5 @@ void httpd_start(void)
     for (int i = 0; i < WORKERS; i++)
         xTaskCreatePinnedToCoreWithCaps(worker_task, "http_worker", 8192, NULL, 5, NULL, tskNO_AFFINITY,
                                         MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    xTaskCreate(server_task, "ipp_server", 4096, (void *)(intptr_t)A80_IPP_PORT, 5, NULL);
+    xTaskCreate(server_task, "http_server", 4096, (void *)(intptr_t)A80_IPP_PORT, 5, NULL);
 }

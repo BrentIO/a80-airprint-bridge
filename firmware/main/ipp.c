@@ -136,7 +136,7 @@ static void media_col(buf_t *b, const char *name, const char *key, int w, int h,
 #define MARGIN 500   // 5 mm default margins so iOS fits photos; 0-margin variants offered too
 #define LETTER "na_letter_8.5x11in", 21590, 27940
 #define A4 "iso_a4_210x297mm", 21000, 29700
-#define PRINTER_URI "ipp://" A80_HOSTNAME ".local:8631/ipp/print"
+#define PRINTER_URI "ipp://" A80_HOSTNAME ".local:80/ipp/print"
 
 // text/strings catalog (PWG 5100.13 section 9.1): `"attribute.keyword" = "text";` per line
 size_t ipp_strings_en(char *out, size_t cap)
@@ -323,11 +323,11 @@ static void printer_attributes(buf_t *b)
     a_str(b, T_NAME, "printer-name", A80_PRINTER_NAME);
     char more[48], addr[16];
     wifi_address(addr, sizeof addr);
-    snprintf(more, sizeof more, "http://%s:%d/", addr, A80_IPP_PORT);
+    snprintf(more, sizeof more, "http://%s/", addr);
     a_str(b, T_URI, "printer-more-info", more);
     // Names for the two paper types (PWG 5100.13 message catalog); the iPhone fetches it from this printer
     char strings[56];
-    snprintf(strings, sizeof strings, "http://%s:%d/strings/en.strings", addr, A80_IPP_PORT);
+    snprintf(strings, sizeof strings, "http://%s/strings/en.strings", addr);
     static const char *const langs[] = {"en", "en-us"};   // the iPhone may ask for "en-US"; both get the same file
     a_strs(b, T_LANG, "printer-strings-languages-supported", langs, 2);
     a_str(b, T_URI, "printer-strings-uri", strings);

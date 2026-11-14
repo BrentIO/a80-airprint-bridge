@@ -338,5 +338,5 @@ jobs, which is consistent with real back-pressure). Status read `01` (printing) 
 - **Known Printers list:** `printer-location` / Bonjour TXT `note` appears under the printer name. The ESP32 uses it as a status line.
 - **Printer Info → Supply Levels:** shown only when the supply looks like a normal cartridge: `marker-types` `toner`,
   `marker-colors` `#000000` (type `other` / colour `none` gave "Information Not Available"). Used for the battery %.
-- **Printer Info → Show Printer Web Page:** opens `printer-more-info` (must include the port, `:8631`).
+- **Printer Info → Show Printer Web Page:** opens `printer-more-info` (`http://<address>/`: port 80, which also carries printing).
 - **Print sheet:** shows nothing for `connecting-to-device`; errors (`printer-state` stopped) flash an alert.
