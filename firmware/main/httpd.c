@@ -129,8 +129,9 @@ static void handle_conn(conn_t *c)
             else if (!strcasecmp(line, "Upgrade")) snprintf(upgrade, sizeof upgrade, "%s", v);
         }
         // One line per request, so a log shows what a phone or browser really asked for (status page polls included).
-        weblog("Request: %s %s [connection %d%s%s%s%s]", method, path, c->fd, ctype[0] ? ", type " : "", ctype,
-               upgrade[0] ? ", asks to upgrade to " : "", upgrade);
+        weblog("Request: %s %s [connection %d%s%s%s%s%s%s%s]", method, path, c->fd, ctype[0] ? ", type " : "", ctype,
+               upgrade[0] ? ", asks to upgrade to " : "", upgrade, chunked ? ", chunked body" : "",
+               expect ? ", expects 100-continue" : "", clen >= 0 ? ", with length" : "");
         if (!strcmp(method, "GET") && !strncmp(path, "/strings/", 9)) {   // names of the paper types for the iPhone
             char cat[512];
             weblog("Client fetched the paper-name catalog [%s, connection %d]", path, c->fd);

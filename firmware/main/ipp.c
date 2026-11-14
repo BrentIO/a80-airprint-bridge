@@ -110,10 +110,12 @@ static void media_size(buf_t *b, const char *name, int w, int h)
 #define MT_TAG T_KEYWORD
 #endif
 
-// A job names the continuous paper with any spelling the iPhone may remember
-static bool is_fanfold_type(const char *t)
+// A job asks for the roll with our name for it, or (from an iPhone that remembers the old names, URF jobs only) the
+// standard keyword. Anything else, including a missing type or Android's "auto"/"stationery" for PWG raster jobs,
+// prints on the default continuous paper.
+static bool is_roll_type(const char *t, bool pwg)
 {
-    return !strcmp(t, MT_FANFOLD_KW) || !strcmp(t, MT_FANFOLD_CUSTOM) || !strcmp(t, A80_PAPER_FANFOLD_NAME);
+    return !strcmp(t, MT_ROLL_CUSTOM) || !strcmp(t, A80_PAPER_ROLL_NAME) || (!pwg && !strcmp(t, MT_ROLL_KW));
 }
 
 static void media_col(buf_t *b, const char *name, const char *key, int w, int h, int margin, const char *type)
@@ -256,7 +258,8 @@ static void printer_attributes(buf_t *b)
     a_int(b, T_ENUM, "finishings-default", 3);
     a_int(b, T_ENUM, "finishings-supported", 3);
     a_str(b, T_MIME, "document-format-default", "image/urf");
-    a_str(b, T_MIME, "document-format-supported", "image/urf");
+    static const char *const kw_fmts[] = {"image/urf", "image/pwg-raster"};   // iPhone/Mac use URF, Android PWG raster
+    a_strs(b, T_MIME, "document-format-supported", kw_fmts, 2);
     a_str(b, T_LANG, "generated-natural-language-supported", "en");
     a_str(b, T_KEYWORD, "identify-actions-default", "sound");
     a_str(b, T_KEYWORD, "identify-actions-supported", "sound");
@@ -302,7 +305,7 @@ static void printer_attributes(buf_t *b)
     a_ints(b, T_ENUM, "print-quality-supported", quals, 2);
     a_str(b, T_KEYWORD, "print-scaling-default", "auto");
     a_strs(b, T_KEYWORD, "print-scaling-supported", kw_scal, 5);
-    a_str(b, T_TEXT, "printer-device-id", "MFG:aixiqee;MDL:A80;CMD:URF;");
+    a_str(b, T_TEXT, "printer-device-id", "MFG:aixiqee;MDL:A80;CMD:URF,PWGRaster;");
     a_str(b, T_TEXT, "printer-info", A80_PRINTER_NAME);
     a_bool(b, "printer-is-accepting-jobs", true);
     a_str(b, T_TEXT, "printer-location", p_note);
@@ -333,6 +336,9 @@ static void printer_attributes(buf_t *b)
     a_str(b, T_URI, "printer-strings-uri", strings);
     a_res(b, "printer-resolution-default", 300);
     a_res(b, "printer-resolution-supported", 300);
+    a_res(b, "pwg-raster-document-resolution-supported", 300);   // PWG 5102.4: one value, at most 360 dpi
+    a_str(b, T_KEYWORD, "pwg-raster-document-sheet-back", "normal");
+    a_str(b, T_KEYWORD, "pwg-raster-document-type-supported", "sgray_8");   // 8-bit gray, what Android sends to mono printers
     a_int(b, T_ENUM, "printer-state", p_state);
     if (p_batt_low && strcmp(p_reason, "none")) {
         a_str(b, T_KEYWORD, "printer-state-reasons", p_reason);
@@ -372,6 +378,9 @@ typedef struct {
     bool first_ok, has_uri, last_document;
     int job_id, quality;
     char format[48], job_name[64], which[24], media_type[32];
+    // seen in job requests, only to log what each kind of client sends
+    char color_mode[24], sides[24], size_name[32], source[24], user[40];
+    int copies, orient, size_x, size_y, margin_top;
     size_t doc_off;
 } req_t;
 
@@ -404,7 +413,8 @@ static int parse(const uint8_t *d, size_t n, req_t *r)
     strcpy(r->which, "not-completed");
     size_t i = 8;
     int group = 0, idx = 0, depth = 0;
-    bool ended = false, want_mt = false;
+    bool ended = false;
+    char mname[24] = "";
     while (i < n) {
         uint8_t t = d[i++];
         if (t == G_END) { ended = true; break; }
@@ -419,12 +429,19 @@ static int parse(const uint8_t *d, size_t n, req_t *r)
         i += 2 + vl;
         if (i > n) return 0;
         if (depth && t == T_MEMBER) {   // member name inside a collection (e.g. media-col)
-            want_mt = vl == 10 && !memcmp(v, "media-type", 10);
+            snprintf(mname, sizeof mname, "%.*s", vl, (const char *)v);
             continue;
         }
-        if (depth && want_mt && (t == T_KEYWORD || t == T_NAME || t == T_TEXT)) {
-            snprintf(r->media_type, sizeof r->media_type, "%.*s", vl, (const char *)v);
-            want_mt = false;
+        if (depth && mname[0]) {
+            bool txt = t == T_KEYWORD || t == T_NAME || t == T_TEXT;
+            int iv = t == T_INTEGER && vl == 4 ? v[0] << 24 | v[1] << 16 | v[2] << 8 | v[3] : 0;
+            if (txt && !strcmp(mname, "media-type")) snprintf(r->media_type, sizeof r->media_type, "%.*s", vl, (const char *)v);
+            else if (txt && !strcmp(mname, "media-size-name")) snprintf(r->size_name, sizeof r->size_name, "%.*s", vl, (const char *)v);
+            else if (txt && !strcmp(mname, "media-source")) snprintf(r->source, sizeof r->source, "%.*s", vl, (const char *)v);
+            else if (t == T_INTEGER && !strcmp(mname, "x-dimension")) r->size_x = iv;
+            else if (t == T_INTEGER && !strcmp(mname, "y-dimension")) r->size_y = iv;
+            else if (t == T_INTEGER && !strcmp(mname, "media-top-margin")) r->margin_top = iv;
+            if (t != T_BEGCOL) mname[0] = 0;
         }
         if (t == T_BEGCOL) { depth++; continue; }
         if (t == T_ENDCOL) { depth--; continue; }
@@ -441,6 +458,11 @@ static int parse(const uint8_t *d, size_t n, req_t *r)
         else if (IS("job-id") && vl == 4) r->job_id = v[0] << 24 | v[1] << 16 | v[2] << 8 | v[3];
         else if (IS("last-document") && vl == 1) r->last_document = v[0];
         else if (IS("print-quality") && vl == 4) r->quality = v[3];
+        else if (IS("print-color-mode")) COPY(r->color_mode);
+        else if (IS("sides")) COPY(r->sides);
+        else if (IS("copies") && vl == 4) r->copies = v[3];
+        else if (IS("orientation-requested") && vl == 4) r->orient = v[3];
+        else if (IS("requesting-user-name")) COPY(r->user);
     }
     if (!ended) return 0;
     r->doc_off = i;
@@ -492,6 +514,10 @@ ipp_txn_t *ipp_begin(const uint8_t *hdr, size_t len)
             polls[k] = 0;
         } else polls[k]++;
     }
+    if (r->op == 0x02 || r->op == 0x04 || r->op == 0x05)   // what this client asks for (reference for new kinds of client)
+        weblog("Job request from \"%s\": format %s, paper type '%s', size %s (%dx%d), source %s, top margin %d, color %s, "
+               "sides %s, quality %d, copies %d, orientation %d", r->user, r->format[0] ? r->format : "(none)", r->media_type,
+               r->size_name, r->size_x, r->size_y, r->source, r->margin_top, r->color_mode, r->sides, r->quality, r->copies, r->orient);
     if (r->ver_major < 1 || r->ver_major > 2) t->status = 0x0503;
     else if (r->req_id == 0 || !r->first_ok || !r->has_uri) t->status = 0x0400;
     if (t->status) return t;
@@ -503,7 +529,8 @@ ipp_txn_t *ipp_begin(const uint8_t *hdr, size_t len)
         printer_attributes(g);
         break;
     case 0x04:   // Validate-Job
-        if (r->format[0] && strcmp(r->format, "image/urf") && strcmp(r->format, "application/octet-stream"))
+        if (r->format[0] && strcmp(r->format, "image/urf") && strcmp(r->format, "image/pwg-raster") &&
+            strcmp(r->format, "application/octet-stream"))
             t->status = 0x040A;
         break;
     case 0x02:   // Print-Job
@@ -511,7 +538,7 @@ ipp_txn_t *ipp_begin(const uint8_t *hdr, size_t len)
         t->job = job_new(r->job_name);
         // a job that names a paper type gets it; one that doesn't prints as continuous perforated Letter
         // either spelling counts: the name we advertise, or the standard keyword (an iPhone may remember the old one)
-        t->job->fanfold = r->media_type[0] ? is_fanfold_type(r->media_type) : true;
+        t->job->fanfold = !is_roll_type(r->media_type, !strcmp(r->format, "image/pwg-raster"));
         t->job->darkness = r->quality == 5 ? 2 : -1;   // Best = darkest; Normal = automatic
         // iOS may show Draft even though only Normal and Best are advertised; Draft prints as Normal (user: too light)
         if (r->quality == 3) weblog("Job %d: Draft isn't offered by this printer; printing as Normal", t->job->id);

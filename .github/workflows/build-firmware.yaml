@@ -73,6 +73,9 @@ jobs:
       - name: Test form parsing
         run: gcc -Wall -Wextra -Werror -o /tmp/form_test test/form_host_test.c && /tmp/form_test
 
+      - name: Test the URF and PWG raster reader
+        run: gcc -Wall -Wextra -Werror -I test/stubs -I main -o /tmp/raster_test test/raster_host_test.c main/urfconv.c -lm && /tmp/raster_test test/fixtures/checker.pwg
+
       - name: Build
         run: |
           . "$IDF_PATH/export.sh" >/dev/null

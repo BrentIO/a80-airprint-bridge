@@ -1,8 +1,10 @@
-// Streaming URF -> 1-bit converter. Image pipeline:
+// Streaming URF / PWG raster -> 1-bit converter. Both formats code each row the same way (a repeat count, then
+// PackBits-like runs); only the headers differ. Image pipeline:
 // resize to the head width (area average), gray, levels clamp (<=7 -> 0, >=248 -> 255), Floyd-Steinberg.
 #include "urfconv.h"
 
 #include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,9 +19,10 @@ enum { S_FILEHDR, S_PAGEHDR, S_REPEAT, S_CTRL, S_REPPIX, S_LIT, S_DONE, S_ERROR 
 struct urfconv {
     int W;                       // output width (dots)
     int state;
-    uint8_t hdr[32];
+    uint8_t hdr[1796];           // URF: 12-byte file header, then 32 bytes per page; PWG: "RaS2", then 1796 per page
     int hdr_n;
-    uint32_t pages_total;
+    bool pwg;                    // PWG raster (iPhone and Mac send URF; Android sends PWG raster)
+    uint32_t pages_total;        // PWG raster doesn't say: unlimited until the stream ends
     // current page
     int bpc, w, h, dpi, Ho;
     uint8_t *row;                // assembled source row (w * bpc)
@@ -145,13 +148,29 @@ static void push_src_row(urfconv_t *c)
     c->y++;
 }
 
+static uint32_t be32(const uint8_t *p) { return (uint32_t)p[0] << 24 | p[1] << 16 | p[2] << 8 | p[3]; }
+
 static int page_start(urfconv_t *c)
 {
     const uint8_t *h = c->hdr;
-    int bpp = h[0];
-    c->w = h[12] << 24 | h[13] << 16 | h[14] << 8 | h[15];
-    c->h = h[16] << 24 | h[17] << 16 | h[18] << 8 | h[19];
-    c->dpi = h[20] << 24 | h[21] << 16 | h[22] << 8 | h[23];
+    int bpp;
+    if (c->pwg) {   // PWG 5102.4 page header (big-endian): see docs/AIRPRINT.md for the offsets
+        c->w = be32(h + 372);
+        c->h = be32(h + 376);
+        c->dpi = be32(h + 276);
+        bpp = be32(h + 388);
+        uint32_t bpc = be32(h + 384), order = be32(h + 396), space = be32(h + 400);
+        // sgray_8 (8-bit gray) is what Android sends a mono printer; srgb_8 is accepted too
+        if (order != 0) return fail(c, "PWG raster must have its colors in one plane");
+        if (!((bpp == 8 && bpc == 8 && space == 18) || (bpp == 24 && bpc == 8 && space == 19)))
+            return fail(c, "unsupported PWG raster type (need sgray_8 or srgb_8)");
+        if (be32(h + 392) != (uint32_t)(c->w * (bpp / 8))) return fail(c, "PWG raster line length doesn't match the width");
+    } else {
+        bpp = h[0];
+        c->w = be32(h + 12);
+        c->h = be32(h + 16);
+        c->dpi = be32(h + 20);
+    }
     if (bpp != 8 && bpp != 24) return fail(c, "unsupported bits per pixel");
     if (c->w < 16 || c->w > 10000 || c->h < 16 || c->h > 20000) return fail(c, "bad page size");
     if (c->npages >= MAX_PAGES) return fail(c, "too many pages");
@@ -190,13 +209,11 @@ static int page_start(urfconv_t *c)
         double s0 = x * r, s1 = (x + 1) * r;
         int i0 = (int)s0;
         c->hx_idx[x] = i0;
-        uint32_t tot = 0;
         for (int k = 0; k < 4 && i0 + k < c->w && i0 + k < s1; k++) {
             double lo = i0 + k > s0 ? i0 + k : s0, hi = i0 + k + 1 < s1 ? i0 + k + 1 : s1;
             uint32_t wt = (uint32_t)lround((hi - lo) / r * 65536);
             if (wt > 65535) wt = 65535;
             c->hx_w[4 * x + k] = wt ? wt : 1;
-            tot += wt;
         }
     }
     c->y = 0;
@@ -239,8 +256,13 @@ int urfconv_feed(urfconv_t *c, const uint8_t *d, size_t n)
         switch (c->state) {
         case S_FILEHDR:
             c->hdr[c->hdr_n++] = b;
-            if (c->hdr_n == 12) {
-                if (memcmp(c->hdr, "UNIRAST", 8)) return fail(c, "not a URF document");
+            if (c->hdr_n == 4 && !memcmp(c->hdr, "RaS2", 4)) {   // PWG raster: no page count, pages follow until the end
+                c->pwg = true;
+                c->pages_total = UINT32_MAX;
+                c->hdr_n = 0;
+                c->state = S_PAGEHDR;
+            } else if (c->hdr_n == 12) {
+                if (memcmp(c->hdr, "UNIRAST", 8)) return fail(c, "not a URF or PWG raster document");
                 c->pages_total = c->hdr[8] << 24 | c->hdr[9] << 16 | c->hdr[10] << 8 | c->hdr[11];
                 c->hdr_n = 0;
                 c->state = c->pages_total ? S_PAGEHDR : S_DONE;
@@ -248,7 +270,7 @@ int urfconv_feed(urfconv_t *c, const uint8_t *d, size_t n)
             break;
         case S_PAGEHDR:
             c->hdr[c->hdr_n++] = b;
-            if (c->hdr_n == 32) {
+            if (c->hdr_n == (c->pwg ? 1796 : 32)) {
                 if (page_start(c)) return -1;
                 c->state = S_REPEAT;
             }
@@ -310,6 +332,8 @@ int urfconv_feed(urfconv_t *c, const uint8_t *d, size_t n)
 int urfconv_finish(urfconv_t *c)
 {
     if (c->state == S_DONE) return 0;
+    // PWG raster ends cleanly when the stream stops between pages
+    if (c->pwg && c->state == S_PAGEHDR && c->hdr_n == 0 && c->npages > 0) return 0;
     if (c->state != S_ERROR) fail(c, "document ended early");
     return -1;
 }
