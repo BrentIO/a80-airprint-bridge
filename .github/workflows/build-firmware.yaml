@@ -1,0 +1,71 @@
+name: 🛠️ Build Firmware
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: build-firmware-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    name: Build ESP32-S3 firmware
+    runs-on: ubuntu-24.04
+
+    # Same image as the local build (see README.md): ESP-IDF 5.5
+    container: espressif/idf:v5.5
+
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: firmware
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Trust the checked-out workspace
+        working-directory: ${{ github.workspace }}
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Build
+        run: |
+          . "$IDF_PATH/export.sh" >/dev/null
+          idf.py build
+
+      - name: Firmware size
+        run: |
+          . "$IDF_PATH/export.sh" >/dev/null
+          {
+            echo '### Firmware size'
+            echo '```'
+            idf.py size | grep -E 'Total image size|Flash Code|Flash Data|DIRAM|IRAM'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create flashable image
+        run: |
+          . "$IDF_PATH/export.sh" >/dev/null
+          idf.py merge-bin -o "a80-airprint-${GITHUB_SHA::7}.bin"
+          ls -l build/a80-airprint-*.bin
+
+      - name: Upload firmware image
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: a80-airprint-${{ github.sha }}
+          # One image, flash at address 0x0 (README.md)
+          path: firmware/build/a80-airprint-*.bin
+          if-no-files-found: error
+          retention-days: 14
