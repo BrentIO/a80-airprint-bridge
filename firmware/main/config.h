@@ -26,6 +26,7 @@
 #define A80_HOSTNAME     "a80printer"          // a80printer.local
 #define A80_IPP_PORT     8631
 #define A80_IPP_PORT_STR "8631"
+#define A80_WEB_PORT     80      // status page, Wi-Fi setup; same pages as on the IPP port
 #define A80_AP_IP        "192.168.4.1"
 #define A80_UUID         "5b1e4a80-7f3c-4e2a-9a80-a80a80a80a80"
 

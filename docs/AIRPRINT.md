@@ -10,7 +10,7 @@ Service `_ipp._tcp`, subtypes `_universal` (this marks it as AirPrint) and `_pri
 ```
 txtvers=1 qtotal=1 rp=ipp/print ty=aixiqee A80 product=(A80) note=Desk
 pdl=image/urf Color=F Duplex=F Copies=F UUID=<uuid> URF=CP1,IS1,MT1,RS300,V1.4,W8
-kind=document,roll PaperMax=legal-A4 priority=0 adminurl=http://<host>:8631/
+kind=document,roll PaperMax=legal-A4 priority=0 adminurl=http://<host>/
 ```
 
 Plain IPP (no TLS) is accepted by iOS.

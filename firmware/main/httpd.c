@@ -21,6 +21,7 @@
 
 typedef struct {
     int fd;
+    bool web_only;   // came in on port 80: web pages only, no printing
     uint8_t buf[2048];
     size_t pos, len;
 } conn_t;
@@ -141,6 +142,11 @@ static void handle_conn(conn_t *c)
             continue;
         }
         if (strcmp(method, "POST")) break;
+        if (c->web_only && strncmp(path, "/wifi", 5)) {   // printing is on the IPP port only
+            static const char nf[] = "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+            send_all(c->fd, nf, sizeof nf - 1);
+            break;
+        }
         // While a request body is arriving, allow long pauses: iOS stops sending a document for 10+ s while the
         // printer shows as stopped (2026-11-12: job 2 cut off exactly 10 s in, while job 1 was on hold).
         struct timeval tv_body = {.tv_sec = 120};
@@ -219,7 +225,9 @@ static void server_task(void *arg)
                             .sin_addr.s_addr = htonl(INADDR_ANY)};
     bind(ls, (struct sockaddr *)&a, sizeof a);
     listen(ls, 8);
-    weblog("Print server ready for the iPhone [IPP on port %d]", (int)(intptr_t)arg);
+    int port = (int)(intptr_t)arg;
+    if (port == A80_IPP_PORT) weblog("Print server ready for the iPhone [IPP on port %d]", port);
+    else weblog("Web pages ready for browsers [port %d]", port);
     for (;;) {
         struct sockaddr_in peer;
         socklen_t pl = sizeof peer;
@@ -227,6 +235,7 @@ static void server_task(void *arg)
         if (fd < 0) continue;
         conn_t *c = heap_caps_calloc(1, sizeof *c, MALLOC_CAP_SPIRAM);
         c->fd = fd;
+        c->web_only = port != A80_IPP_PORT;
         weblog("iPhone opened a connection [connection %d from %s, %u KB internal RAM free]", fd, inet_ntoa(peer.sin_addr),
                (unsigned)(heap_caps_get_free_size(MALLOC_CAP_INTERNAL) / 1024));
         if (uxQueueSpacesAvailable(conn_q) == 0)
@@ -243,4 +252,5 @@ void httpd_start(void)
         xTaskCreatePinnedToCoreWithCaps(worker_task, "http_worker", 8192, NULL, 5, NULL, tskNO_AFFINITY,
                                         MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     xTaskCreate(server_task, "ipp_server", 4096, (void *)(intptr_t)A80_IPP_PORT, 5, NULL);
+    xTaskCreate(server_task, "web_server", 4096, (void *)(intptr_t)A80_WEB_PORT, 5, NULL);   // same worker pool
 }

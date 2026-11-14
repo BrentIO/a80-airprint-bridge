@@ -323,7 +323,7 @@ static void printer_attributes(buf_t *b)
     a_str(b, T_NAME, "printer-name", A80_PRINTER_NAME);
     char more[48], addr[16];
     wifi_address(addr, sizeof addr);
-    snprintf(more, sizeof more, "http://%s:%d/", addr, A80_IPP_PORT);
+    snprintf(more, sizeof more, "http://%s/", addr);
     a_str(b, T_URI, "printer-more-info", more);
     // Names for the two paper types (PWG 5100.13 message catalog); the iPhone fetches it from this printer
     char strings[56];
