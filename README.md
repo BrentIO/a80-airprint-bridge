@@ -57,6 +57,10 @@ needed. There are two:
 | `a80-airprint-<id>.bin` (merged) | **0x0** | The first flash of a board, or after the bootloader/partition table changed. **Erases the saved home Wi-Fi.** |
 | `a80-airprint-<id>-app.bin` | **0x10000** | Updating a board that already runs this firmware. **Keeps the saved home Wi-Fi** and the paper setting. |
 
+The app address is **0x10000** (a 1 and four zeros), not 0x1000: flashing the app at 0x1000 overwrites the bootloader
+and the board won't boot ("Invalid image block, can't boot"). If that happens, flash the merged image at 0x0 to
+recover.
+
 In the web flasher leave "Erase all flash" off. If an update ever needs the merged image (the release notes say so),
 set the home network up again afterwards.
 
