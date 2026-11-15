@@ -15,7 +15,7 @@ It's a printer similar to [this one on Amazon](https://a.co/d/09d2KUnP).
 ## What works
 
 - The iPhone finds **A80 Thermal** on the ESP32's open hotspot and prints from any app.
-- **Android** prints too (tested: Chrome on an Android tablet, over home Wi-Fi). Print → **All printers** or the printer list shows **A80 Thermal**.
+- **Android** prints too (tested: Chrome on an Android tablet, over home Wi-Fi and over the printer's own **A80-Print** hotspot). Print → **All printers** or the printer list shows **A80 Thermal**.
   Android lists the sizes as plain **Letter** and **ISO A4** and warns that the print passes through other services; both are
   Android's own wording and can't be changed from the printer.
 - **Paper:** **Continuous Perforated Letter** (fanfold; pages land on the perforations) is the default, and

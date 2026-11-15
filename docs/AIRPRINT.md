@@ -114,7 +114,7 @@ Android's built-in print service (the Mopria-based "Default Print Service") find
 of those isn't usable. So the printer also accepts **PWG raster** (PWG 5102.4), advertised as
 `document-format-supported = image/urf, image/pwg-raster`, `pwg-raster-document-resolution-supported = 300dpi`,
 `pwg-raster-document-sheet-back = normal`, `pwg-raster-document-type-supported = sgray_8` (and `pdl` in the TXT record).
-Research and the plan are in issue #27. **Tested on an Android tablet (Chrome, home Wi-Fi, Letter, portrait): prints correctly.**
+Research and the plan are in issue #27. **Tested on an Android tablet (Chrome, Letter, portrait): prints correctly over home Wi-Fi and over the printer's own no-internet hotspot at reduced power.**
 Android labels paper sizes itself from a fixed list in its print service ("Letter", "ISO A4"); it ignores `printer-strings-uri`,
 so the custom paper names the iPhone and Mac show can't appear there.
 
