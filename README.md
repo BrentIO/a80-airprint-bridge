@@ -15,7 +15,7 @@ It's a printer similar to [this one on Amazon](https://a.co/d/09d2KUnP).
 ## What works
 
 - The iPhone finds **A80 Thermal** on the ESP32's open hotspot and prints from any app.
-- **Android** prints too (tested: Chrome on an Android tablet, over home Wi-Fi). Print → **All printers** or the printer list shows **A80 Thermal**.
+- **Android** prints too (tested: Chrome on an Android tablet, over home Wi-Fi and over the printer's own **A80-Print** hotspot). Print → **All printers** or the printer list shows **A80 Thermal**.
   Android lists the sizes as plain **Letter** and **ISO A4** and warns that the print passes through other services; both are
   Android's own wording and can't be changed from the printer.
 - **Paper:** **Continuous Perforated Letter** (fanfold; pages land on the perforations) is the default, and
@@ -53,16 +53,37 @@ Flash `firmware/build/merged.bin` at address **0x0**, for example with the web f
 (https://espressif.github.io/esptool-js/, Chrome) or `esptool.py write_flash 0x0 merged.bin`.
 
 Every pull request is also built in GitHub Actions: download the images from the run's **Artifacts**, no local build
-needed. There are two:
+needed. There are three (the third is only for the one-time move below):
 
 | Image | Flash at | Use it for |
 |---|---|---|
 | `a80-airprint-<id>.bin` (merged) | **0x0** | The first flash of a board, or after the bootloader/partition table changed. **Erases the saved home Wi-Fi.** |
-| `a80-airprint-<id>-app.bin` | **0x10000** | Updating a board that already runs this firmware. **Keeps the saved home Wi-Fi** and the paper setting. |
+| `a80-airprint-<id>-app.bin` | **0x10000**, or the web page `/update` | Updating a board that already runs this firmware. **Keeps the saved home Wi-Fi** and the paper setting. |
+| `a80-airprint-<id>-partition-table.bin` | **0x8000** | Only once, to move a board with older firmware to the two-slot layout without erasing the saved Wi-Fi. |
 
 The app address is **0x10000** (a 1 and four zeros), not 0x1000: flashing the app at 0x1000 overwrites the bootloader
 and the board won't boot ("Invalid image block, can't boot"). If that happens, flash the merged image at 0x0 to
 recover.
+
+**Updating from the printer's own web page (no USB, no computer):** open `http://a80printer.local/update` (or
+`http://192.168.4.1/update` on the hotspot; the status page links to it as "Update the firmware"), pick the `-app.bin`
+file from the release or the CI run, tap **Update**, and wait. It takes about a minute; the printer restarts by itself
+and **keeps the saved Wi-Fi**. It refuses while a print job is waiting or printing. A new version that fails to start
+falls back to the old one, because it is only accepted after it has run for 30 s.
+
+There is **no password** on it. Instead the hotspot's range is deliberately short (about 8 dBm, set by
+`A80_AP_TX_POWER_DBM` in `config.h`), so you have to be close to the printer to join it. Be aware that this isn't
+authentication: anyone close enough, or on your home network, can load firmware built for this project.
+
+**The first time (one-time migration to the new layout):** this firmware has two app slots, which changes the partition
+table. A board with older firmware needs it flashed once over USB: either the merged image at **0x0** (erases the saved
+home Wi-Fi), or, to keep the Wi-Fi, two files: `a80-airprint-<id>-partition-table.bin` at **0x8000**, then the `-app.bin`
+at **0x10000**. After that, update from the web page.
+
+**Mixing web and USB updates:** the web page writes to the *other* slot, so after a web update the board may run slot 1.
+Flashing an `-app` image over USB at 0x10000 always goes to slot 0, and the board keeps running slot 1 (the old firmware!)
+until you flash the **merged** image, which also resets which slot boots. The status page and the console show
+"Firmware slot" (`ota_0` or `ota_1`). So: after web updates, use the web page, or the merged image over USB.
 
 In the web flasher leave "Erase all flash" off. If an update ever needs the merged image (the release notes say so),
 set the home network up again afterwards.
@@ -124,9 +145,10 @@ Flashing the merged image (at `0x0`) erases it; the `-app` image (at `0x10000`) 
 
 ## Releases
 
-Releases are named `YYYY.MM.NN` (for example `2026.11.01`) and listed under **Releases**. Each one has two
-images attached: the merged `a80-airprint-<version>.bin` (flash at **0x0**) and `a80-airprint-<version>-app.bin`
-(flash at **0x10000** to update without losing the saved Wi-Fi), no build needed.
+Releases are named `YYYY.MM.NN` (for example `2026.11.01`) and listed under **Releases**. Each one has these
+images attached: the merged `a80-airprint-<version>.bin` (flash at **0x0**), `a80-airprint-<version>-app.bin`
+(flash at **0x10000**, or upload on the printer's `/update` page, to update without losing the saved Wi-Fi) and
+`a80-airprint-<version>-partition-table.bin` (0x8000, for the one-time move), no build needed.
 
 To make a release (maintainers): **Actions → 🚀 Release → Run workflow** on `main`, and enter the version. It checks
 the version format and that the tag doesn't exist yet, runs the same build every pull request must pass (stamped with

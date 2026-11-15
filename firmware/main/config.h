@@ -3,6 +3,9 @@
 #define A80_AP_SSID      "A80-Print"
 #define A80_AP_CHANNEL   6
 #define A80_AP_MAX_CONN  4
+// Hotspot transmit power in dBm (the ESP32 default is about 20). Lower = a phone has to be closer; a firmware update from the
+// web page needs no password, so this is what keeps it to people nearby. Used only while the hotspot is on.
+#define A80_AP_TX_POWER_DBM 8
 
 // Home Wi-Fi (optional; set up on the printer's /wifi page)
 #define A80_HOME_JOIN_S        12   // at boot, and when trying a new network: wait this long for an address

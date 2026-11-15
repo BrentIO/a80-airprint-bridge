@@ -1,0 +1,8 @@
+# Name,    Type, SubType, Offset,   Size
+# Two app slots for updates from the web page. Slot 0 stays at 0x10000 and the NVS (saved Wi-Fi) at 0x9000, as before.
+# otadata sits right after slot 0 so that the merged image (flashed at 0x0) also resets which slot boots.
+nvs,       data, nvs,     0x9000,   0x6000
+phy_init,  data, phy,     0xf000,   0x1000
+ota_0,     app,  ota_0,   0x10000,  0x170000
+otadata,   data, ota,     0x180000, 0x2000
+ota_1,     app,  ota_1,   0x190000, 0x170000

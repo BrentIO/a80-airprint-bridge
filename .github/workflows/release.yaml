@@ -84,3 +84,4 @@ jobs:
           files: |
             dist/a80-airprint-${{ inputs.version }}.bin
             dist/a80-airprint-${{ inputs.version }}-app.bin
+            dist/a80-airprint-${{ inputs.version }}-partition-table.bin

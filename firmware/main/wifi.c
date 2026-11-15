@@ -96,13 +96,15 @@ static void hotspot_start(void)
                                .authmode = WIFI_AUTH_OPEN}};
     esp_wifi_set_mode(WIFI_MODE_APSTA);
     esp_wifi_set_config(WIFI_IF_AP, &ap);
+    esp_wifi_set_max_tx_power(A80_AP_TX_POWER_DBM * 4);   // units of 0.25 dBm; applies to the whole radio, so it's restored in hotspot_stop
     ap_on = true;
-    weblog("Wi-Fi hotspot \"%s\" is on (no password) [address %s]", A80_AP_SSID, A80_AP_IP);
+    weblog("Wi-Fi hotspot \"%s\" is on (no password, reduced range: %d dBm) [address %s]", A80_AP_SSID, A80_AP_TX_POWER_DBM, A80_AP_IP);
 }
 
 static void hotspot_stop(void)
 {
     esp_wifi_set_mode(WIFI_MODE_STA);
+    esp_wifi_set_max_tx_power(80);   // back to the maximum for the link to the home router
     ap_on = false;
 }
 

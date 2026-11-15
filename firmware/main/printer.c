@@ -965,6 +965,7 @@ size_t printer_status_html(char *o, size_t cap)
     P("<tr><td>Default paper</td><td>%s</td></tr>", A80_PAPER_FANFOLD_NAME);
     if (n < cap) n += espinfo_html_rows(o + n, cap - n);
     P("</table>");
+    P("<p><a href=/update>Update the firmware</a> &middot; <a href=/wifi>Home Wi-Fi</a></p>");
     P("<p style='color:#888;font-size:13px'>Refreshes every 15 s.</p></body></html>");
 #undef P
     return n < cap ? n : cap - 1;

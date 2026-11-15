@@ -23,3 +23,6 @@ size_t ipp_strings_en(char *out, size_t cap);
 // Called by the print task.
 void ipp_job_update(int id, int state, const char *reasons, int pages_done);   // pages_done < 0: unchanged
 bool ipp_job_canceled(int id);
+
+// True while a job is waiting, receiving or printing (a firmware update must not start then).
+bool ipp_busy(void);

@@ -69,7 +69,7 @@ static void mac_line(item_t *it, int *n, const char *label, esp_mac_type_t t)
 // Reading flash from a task whose stack is in PSRAM trips an ESP-IDF assert (the cache is off during the read), and the
 // web workers and the printer task are such tasks. So the flash-derived values are read once at boot, from the main
 // task, and only the saved text is used afterwards.
-static char flash_txt[16], space_txt[64];
+static char flash_txt[16], space_txt[64], slot_txt[24];
 
 void espinfo_init(void)
 {
@@ -77,6 +77,7 @@ void espinfo_init(void)
     if (esp_flash_get_size(NULL, &fsize) == ESP_OK) snprintf(flash_txt, sizeof flash_txt, "%u MB", (unsigned)(fsize / (1024 * 1024)));
     const esp_partition_t *p = esp_ota_get_running_partition();
     if (!p) return;
+    snprintf(slot_txt, sizeof slot_txt, "%s", p->label);
     esp_image_metadata_t meta;
     const esp_partition_pos_t pos = {.offset = p->address, .size = p->size};
     if (esp_image_get_metadata(&pos, &meta) == ESP_OK)
@@ -117,6 +118,7 @@ static int collect(item_t *it)
     mem_line(it, &n, "PSRAM", MALLOC_CAP_SPIRAM);
 
     if (flash_txt[0]) put(it, &n, "Flash", "%s", flash_txt);
+    if (slot_txt[0]) put(it, &n, "Firmware slot", "%s", slot_txt);
     if (space_txt[0]) put(it, &n, "Firmware space", "%s", space_txt);
 
     const char *rr = reset_text(esp_reset_reason());
